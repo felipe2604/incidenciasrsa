@@ -1,0 +1,46 @@
+import { z } from "zod";
+import { PRIORIDADES, TIPO_UBICACION } from "./constants";
+
+// Normaliza campos opcionales que pueden llegar como null (p. ej. de un
+// FormData.get() sobre un <select> que no está en el DOM) a undefined, para
+// que el tipo de salida encaje con el resto de la capa de negocio (string|undefined).
+const textoOpcional = (maxLen: number) =>
+  z
+    .string()
+    .max(maxLen)
+    .nullish()
+    .transform((v) => v ?? undefined);
+
+// Validación de forma/tipo en el borde de la API (defensa en profundidad):
+// los límites de negocio exactos (longitudes, saneado) siguen viviendo en
+// validaciones.ts, que es la fuente única de verdad para esas reglas.
+export const esquemaNuevaIncidencia = z.object({
+  titulo: z.string().min(1).max(500),
+  descripcion: z.string().min(1).max(10000),
+  tipoUbicacion: z.enum([TIPO_UBICACION.BLOQUE, TIPO_UBICACION.ZONA_COMUN]),
+  bloque: textoOpcional(50),
+  planta: textoOpcional(50),
+  zonaComun: textoOpcional(50),
+  ubicacionDetalle: textoOpcional(500),
+  categoria: z.string().min(1).max(50),
+  prioridad: z.enum(PRIORIDADES),
+  costeEstimado: z.union([z.string(), z.number()]).nullish().transform((v) => v ?? undefined),
+  proveedor: textoOpcional(300),
+  fechaPrevistaActuacion: textoOpcional(50),
+  confidencial: z.boolean().optional(),
+});
+
+export const esquemaCambiarEstado = z.object({
+  estado: z.string().min(1).max(50),
+});
+
+export const esquemaComentario = z.object({
+  texto: z.string().min(1).max(5000),
+});
+
+export const esquemaArchivoNuevo = z.object({
+  idIncidencia: z.string().min(1).max(50),
+  nombreOriginal: z.string().min(1).max(300),
+  tipoMime: z.string().min(1).max(100),
+  contenidoBase64: z.string().min(1),
+});

@@ -1,0 +1,175 @@
+# Incidencias RSA — Web
+
+Aplicación de gestión de incidencias de la comunidad de vecinos **Residencial Santa
+Aurelia**, reescrita como aplicación web desplegable en [Vercel](https://vercel.com).
+
+Sustituye a la versión anterior (Google Apps Script embebido en un Google Sheet) para
+que iniciar sesión sea tan simple como pulsar "Continuar con Google", sin avisos de
+"aplicación no verificada", sin límite de 100 usuarios de prueba y sin tener que volver
+a conceder permisos cada 7 días.
+
+Repositorio: https://github.com/felipe2604/incidenciasrsa
+
+## Índice
+
+- [Stack técnico](#stack-técnico)
+- [Arquitectura y seguridad](#arquitectura-y-seguridad)
+- [Funcionalidad actual vs. pendiente](#funcionalidad-actual-vs-pendiente)
+- [Puesta en marcha en local](#puesta-en-marcha-en-local)
+- [Preparar la hoja de cálculo (Google Sheets)](#preparar-la-hoja-de-cálculo-google-sheets)
+- [Credenciales de Google Cloud](#credenciales-de-google-cloud)
+- [Vercel Blob (almacenamiento de archivos)](#vercel-blob-almacenamiento-de-archivos)
+- [Despliegue en Vercel](#despliegue-en-vercel)
+- [Scripts disponibles](#scripts-disponibles)
+- [Notas de seguridad](#notas-de-seguridad)
+
+## Stack técnico
+
+| Capa | Elección | Motivo |
+| --- | --- | --- |
+| Framework | **Next.js 15** (App Router) + **TypeScript** | Despliegue nativo en Vercel, API routes y páginas en el mismo proyecto, tipado fuerte para una app con reglas de permisos complejas. |
+| Estilos | **Tailwind CSS 3** | Rapidez de maquetación, paleta de color (`marca-*`) ajustada a la identidad visual de la app original. |
+| Autenticación | **NextAuth.js** con `GoogleProvider`, sesión JWT | El usuario solo concede permisos básicos (nombre, email); el acceso real a la hoja de cálculo lo gestiona el backend con una cuenta de servicio, no el usuario. |
+| Base de datos | La misma **Google Sheet** ya usada por la app original, vía API de Sheets autenticada con **cuenta de servicio** | No hay que migrar datos a una base de datos nueva; el comité ya conoce y sabe editar esa hoja si hace falta. |
+| Archivos adjuntos | **Vercel Blob** | Sustituye a Google Drive; las fotos se comprimen en el navegador antes de subirlas y solo se sirven a través de una ruta propia que revalida permisos en cada descarga. |
+| Validación | `zod` (forma/tipos en el borde de la API) + funciones de saneado propias (límites de negocio exactos) | Defensa en profundidad: cualquier payload manipulado a mano que no respete la forma esperada se rechaza antes de tocar la lógica de negocio. |
+
+## Arquitectura y seguridad
+
+El principio heredado de la aplicación original es: **el cliente nunca es la barrera de
+seguridad real**. Cada ruta de API y cada página protegida:
+
+1. Llama a `obtenerUsuarioActual()`, que valida la sesión de Google **y** vuelve a leer
+   el usuario desde la hoja "Usuarios" en cada petición (no se confía en datos
+   cacheados en el token más allá del email). Si el usuario está desactivado o hay un
+   bloqueo global de acceso, se corta ahí mismo.
+2. Revalida permisos por rol (`verificarPermiso`) y ámbito (`incidenciaEnAmbito`) antes
+   de leer o escribir cualquier incidencia — un vocal con ámbito limitado a un bloque
+   no puede ver ni modificar incidencias de otro bloque aunque adivine su ID.
+3. Nunca expone la URL real de Vercel Blob al navegador: las descargas pasan siempre
+   por `/api/archivos/[id]/descarga`, que vuelve a comprobar permisos y hace de proxy
+   de los bytes.
+
+Otros puntos relevantes:
+
+- Las credenciales de la cuenta de servicio de Google y el token de Vercel Blob solo se
+  leen en código de servidor (`lib/sheets.ts`, rutas de API); ningún componente
+  `"use client"` las importa, por lo que nunca llegan al bundle del navegador.
+- Los errores de negocio (`ErrorAplicacion`) se traducen a códigos HTTP concretos
+  (401/403/404/400) sin filtrar trazas internas; cualquier error no controlado se
+  registra en el servidor y se devuelve como mensaje genérico (500).
+- La generación de IDs correlativos (`INC000001`, etc.) usa reintento optimista contra
+  un contador en la pestaña "Configuracion", ya que la API de Sheets no ofrece bloqueo
+  real como `LockService` en Apps Script. Es una limitación aceptada para el volumen de
+  una comunidad de vecinos; si el número de altas simultáneas creciera mucho, sustituir
+  por un lock distribuido (p. ej. Vercel KV).
+
+## Funcionalidad actual vs. pendiente
+
+**Ya implementado:**
+- Login con Google restringido a usuarios dados de alta y activos en la hoja "Usuarios".
+- Alta de incidencias (bloque/planta o zona común, categoría, prioridad, descripción).
+- Adjuntar fotos (comprimidas automáticamente en el navegador) y PDFs.
+- Listado de incidencias filtrado por ámbito del usuario, detalle, comentarios.
+- Cambios de estado siguiendo la máquina de estados original (registrada → asignada →
+  en curso → resuelta → cerrada, con reapertura y cancelación).
+- Marcar incidencias como confidenciales (solo visibles para ADMIN/PRESIDENTE y el autor).
+
+**Pendiente (fuera de alcance de esta primera versión):**
+- Panel/dashboard con gráficas.
+- Informes en PDF.
+- Pantalla de administración (alta/baja de usuarios, catálogos de bloques/zonas).
+- Notificaciones por email.
+- Tareas programadas (recordatorios, cierres automáticos).
+
+## Puesta en marcha en local
+
+Requisitos: **Node.js 20 o superior** y una copia de la hoja de cálculo (ver siguiente
+sección).
+
+```bash
+git clone https://github.com/felipe2604/incidenciasrsa.git
+cd incidenciasrsa
+npm install
+cp .env.example .env.local   # y rellenar los valores (ver secciones siguientes)
+npm run dev
+```
+
+La app queda disponible en `http://localhost:3000`.
+
+## Preparar la hoja de cálculo (Google Sheets)
+
+1. Duplicar la hoja de cálculo original de la app Apps Script (Archivo → Crear una copia).
+2. Mantener las pestañas **Usuarios** y **Configuracion** tal cual (son la lista blanca
+   de acceso y los parámetros/contadores de la app).
+3. En el resto de pestañas (Incidencias, Actuaciones, Comentarios, Archivos, Auditoria,
+   Notificaciones) borrar las filas de datos pero conservar la fila de cabeceras.
+4. En la pestaña **Archivos**, sustituir la columna `id_drive` (si existía) por
+   `url_blob`: ahora los adjuntos se guardan en Vercel Blob, no en Google Drive.
+5. Copiar el ID de la hoja de cálculo (la parte de la URL entre `/d/` y `/edit`) en la
+   variable `GOOGLE_SHEETS_SPREADSHEET_ID`.
+6. Compartir la hoja con el email de la cuenta de servicio (ver siguiente sección) con
+   permiso de **editor**.
+
+## Credenciales de Google Cloud
+
+**1. Cliente OAuth para el login (NextAuth):**
+- Google Cloud Console → "APIs y servicios" → "Credenciales" → "Crear credenciales" →
+  "ID de cliente de OAuth" → tipo "Aplicación web".
+- Orígenes autorizados de JavaScript: `http://localhost:3000` y la URL de producción.
+- URI de redirección autorizados: `.../api/auth/callback/google` (local y producción).
+- Copiar el Client ID/Secret en `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`.
+- No hace falta pedir scopes sensibles ni pasar verificación de Google: solo se piden
+  los scopes básicos (openid/email/profile).
+
+**2. Cuenta de servicio para el acceso del backend a Sheets:**
+- Google Cloud Console → "IAM y administración" → "Cuentas de servicio" → "Crear cuenta
+  de servicio".
+- Generar una clave JSON, copiar `client_email` → `GOOGLE_SERVICE_ACCOUNT_EMAIL` y
+  `private_key` → `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` (mantener los `\n` literales si
+  se pega como variable de entorno de una sola línea en Vercel).
+- Habilitar la API de Google Sheets en el proyecto.
+- Compartir la hoja de cálculo con ese email (paso 6 de la sección anterior).
+
+**3. `NEXTAUTH_SECRET`:** generar con `openssl rand -base64 32` (o cualquier generador
+de cadena aleatoria de 32+ bytes).
+
+## Vercel Blob (almacenamiento de archivos)
+
+En el proyecto de Vercel: pestaña "Storage" → "Create Database" → "Blob". Al crearlo,
+Vercel añade automáticamente la variable `BLOB_READ_WRITE_TOKEN` al proyecto. Para
+desarrollo local, copiar ese mismo token a `.env.local`.
+
+## Despliegue en Vercel
+
+1. Importar el repositorio `felipe2604/incidenciasrsa` desde el dashboard de Vercel.
+2. Configurar las variables de entorno (sección "Environment Variables") con los mismos
+   nombres que `.env.example`, usando los valores de producción (URL real en
+   `NEXTAUTH_URL`, etc.).
+3. Añadir el almacén de Vercel Blob al proyecto (paso anterior).
+4. Desplegar. Vercel ejecuta `npm install` y `next build` automáticamente.
+5. Actualizar en Google Cloud Console el cliente OAuth con la URL final de producción
+   (orígenes y URI de redirección).
+
+## Scripts disponibles
+
+```bash
+npm run dev     # servidor de desarrollo
+npm run build   # build de producción (incluye type-check y lint)
+npm run start   # sirve el build de producción
+npm run lint    # ESLint
+```
+
+## Notas de seguridad
+
+- Revisado con `tsc --noEmit`, `next build` y `next lint` sin errores ni warnings.
+- `npm audit` señala vulnerabilidades en dependencias **transitivas** de `next`,
+  `tailwindcss` y `googleapis` (parsing de CSS/sourcemaps y generación interna de UUIDs)
+  cuyo arreglo completo exige subir esos paquetes de versión mayor (Next 16, Tailwind 4,
+  googleapis 185). No son explotables en el flujo de esta app (no procesamos CSS ni
+  buffers de terceros), así que se ha preferido no forzar esas migraciones mayores sin
+  probarlas a fondo primero. Revisar periódicamente con `npm audit` y planificar esas
+  subidas de versión como tarea aparte.
+- Antes de desplegar a producción, confirmar que ninguna variable de entorno sensible
+  lleva el prefijo `NEXT_PUBLIC_` (eso la incluiría en el bundle del navegador). Ninguna
+  de las definidas en `.env.example` lo lleva.
