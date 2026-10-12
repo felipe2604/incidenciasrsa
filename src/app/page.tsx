@@ -4,5 +4,5 @@ import { authOptions } from "@/auth";
 
 export default async function Home() {
   const session = await getServerSession(authOptions);
-  redirect(session ? "/incidencias" : "/login");
+  redirect(session ? "/incidencias/panel" : "/login");
 }

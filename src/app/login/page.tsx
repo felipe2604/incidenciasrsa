@@ -16,7 +16,7 @@ function LoginContenido() {
         </p>
       )}
       <button
-        onClick={() => signIn("google", { callbackUrl: "/incidencias" })}
+        onClick={() => signIn("google", { callbackUrl: "/incidencias/panel" })}
         className="rounded-md bg-marca-500 px-6 py-3 font-semibold text-white hover:bg-marca-600"
       >
         Continuar con Google

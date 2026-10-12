@@ -53,6 +53,19 @@ export const TRANSICIONES_ESTADO: Record<Estado, Estado[]> = {
   CANCELADA: [],
 };
 
+export const ETIQUETAS_ESTADO: Record<Estado, string> = {
+  REGISTRADA: "Registrada",
+  PENDIENTE_REVISION: "Pendiente de revisión",
+  ASIGNADA: "Asignada",
+  EN_CURSO: "En curso",
+  PENDIENTE_PROVEEDOR: "Pendiente de proveedor",
+  PENDIENTE_PRESUPUESTO: "Pendiente de presupuesto",
+  RESUELTA: "Resuelta",
+  CERRADA: "Cerrada",
+  REABIERTA: "Reabierta",
+  CANCELADA: "Cancelada",
+};
+
 export const TIPO_UBICACION = { BLOQUE: "BLOQUE", ZONA_COMUN: "ZONA_COMUN" } as const;
 export type TipoUbicacion = (typeof TIPO_UBICACION)[keyof typeof TIPO_UBICACION];
 
