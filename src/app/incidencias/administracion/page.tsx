@@ -1,6 +1,8 @@
 import { obtenerUsuarioActual } from "@/lib/sesion";
+import { listarUsuarios } from "@/lib/usuarios";
 import { ROLES } from "@/lib/constants";
 import AccesoDenegado from "@/components/AccesoDenegado";
+import GestionUsuarios from "@/components/GestionUsuarios";
 
 export default async function AdministracionPage() {
   let actor;
@@ -13,12 +15,13 @@ export default async function AdministracionPage() {
     return <AccesoDenegado mensaje="No tiene permisos para acceder a Administración." />;
   }
 
+  const usuarios = await listarUsuarios(actor);
+
   return (
     <div>
-      <h2 className="mb-4 text-xl font-semibold">Administración</h2>
-      <p className="text-gray-600">
-        Esta sección está en construcción. Próximamente: gestión de usuarios y catálogos desde la propia aplicación.
-      </p>
+      <h2 className="mb-4 text-xl font-semibold">Administración de usuarios</h2>
+      <GestionUsuarios usuarios={usuarios} />
     </div>
   );
 }
+

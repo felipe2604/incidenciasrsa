@@ -38,6 +38,8 @@ export interface FiltrosIncidencias {
   texto?: string;
   incluirArchivadas?: boolean;
   estado?: string;
+  prioridad?: string;
+  categoria?: string;
 }
 
 export async function listarIncidencias(actor: Usuario, filtros: FiltrosIncidencias = {}): Promise<IncidenciaProyectada[]> {
@@ -47,6 +49,8 @@ export async function listarIncidencias(actor: Usuario, filtros: FiltrosIncidenc
     .filter((inc) => incidenciaEnAmbito(actor, inc))
     .filter((inc) => !(inc.archivada === true || inc.archivada === "TRUE") || filtros.incluirArchivadas === true)
     .filter((inc) => (filtros.estado ? inc.estado === filtros.estado : true))
+    .filter((inc) => (filtros.prioridad ? inc.prioridad === filtros.prioridad : true))
+    .filter((inc) => (filtros.categoria ? inc.categoria === filtros.categoria : true))
     .filter((inc) => {
       if (!filtros.texto) return true;
       const t = filtros.texto.toLowerCase();

@@ -15,32 +15,39 @@ export default async function IncidenciasLayout({ children }: { children: React.
   const puedeVerInformes = esAdmin || rol === "PRESIDENTE";
 
   return (
-    <div className="mx-auto max-w-4xl p-4">
+    <div className="mx-auto max-w-6xl p-3 sm:p-6">
       <header className="mb-4 border-b border-marca-200 pb-3">
-        <div className="mb-3 flex items-center justify-between">
-          <Link href="/incidencias/panel" className="flex items-center gap-2">
-            <Image src="/logo.png" alt="Residencial Santa Aurelia" width={36} height={36} className="rounded" />
-            <span className="text-lg font-bold text-marca-700">Incidencias RSA</span>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <Link href="/incidencias/panel" className="flex items-center gap-3">
+            <Image
+              src="/logo.png"
+              alt="Residencial Santa Aurelia"
+              width={56}
+              height={56}
+              className="h-12 w-12 shrink-0 rounded-md object-contain sm:h-14 sm:w-14"
+              priority
+            />
+            <span className="text-lg font-bold text-marca-700 sm:text-xl">Incidencias RSA</span>
           </Link>
           <div className="flex items-center gap-3 text-sm">
-            <span>{session.user?.nombre || session.user?.email}</span>
+            <span className="hidden sm:inline">{session.user?.nombre || session.user?.email}</span>
             <CerrarSesionBoton />
           </div>
         </div>
-        <nav className="flex gap-4 text-sm font-medium text-marca-700">
-          <Link href="/incidencias/panel" className="hover:underline">
+        <nav className="-mx-1 flex gap-1 overflow-x-auto text-sm font-medium text-marca-700 sm:gap-2">
+          <Link href="/incidencias/panel" className="whitespace-nowrap rounded-md px-2 py-1 hover:bg-marca-100/50">
             Panel
           </Link>
-          <Link href="/incidencias" className="hover:underline">
+          <Link href="/incidencias" className="whitespace-nowrap rounded-md px-2 py-1 hover:bg-marca-100/50">
             Incidencias
           </Link>
           {puedeVerInformes && (
-            <Link href="/incidencias/informes" className="hover:underline">
+            <Link href="/incidencias/informes" className="whitespace-nowrap rounded-md px-2 py-1 hover:bg-marca-100/50">
               Informes
             </Link>
           )}
           {esAdmin && (
-            <Link href="/incidencias/administracion" className="hover:underline">
+            <Link href="/incidencias/administracion" className="whitespace-nowrap rounded-md px-2 py-1 hover:bg-marca-100/50">
               Administración
             </Link>
           )}

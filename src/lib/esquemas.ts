@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PRIORIDADES, TIPO_UBICACION } from "./constants";
+import { PRIORIDADES, ROLES, TIPO_UBICACION } from "./constants";
 
 // Normaliza campos opcionales que pueden llegar como null (p. ej. de un
 // FormData.get() sobre un <select> que no está en el DOM) a undefined, para
@@ -43,4 +43,13 @@ export const esquemaArchivoNuevo = z.object({
   nombreOriginal: z.string().min(1).max(300),
   tipoMime: z.string().min(1).max(100),
   contenidoBase64: z.string().min(1),
+});
+
+export const esquemaUsuario = z.object({
+  email: z.string().email().max(200),
+  nombre: z.string().min(1).max(150),
+  rol: z.enum([ROLES.ADMIN, ROLES.PRESIDENTE, ROLES.VOCAL, ROLES.COORDINADOR]),
+  ambitoBloques: z.string().max(500).nullish().transform((v) => v ?? undefined),
+  ambitoZonas: z.string().max(500).nullish().transform((v) => v ?? undefined),
+  activo: z.boolean().optional(),
 });

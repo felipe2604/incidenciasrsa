@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { comprimirImagen } from "@/lib/compresionImagen";
 import { CATALOGOS, PRIORIDADES } from "@/lib/constants";
 
-export default function FormularioIncidencia() {
+export default function FormularioIncidencia({ onExito }: { onExito?: (idIncidencia: string) => void }) {
   const router = useRouter();
   const [tipoUbicacion, setTipoUbicacion] = useState<"BLOQUE" | "ZONA_COMUN">("BLOQUE");
   const [enviando, setEnviando] = useState(false);
@@ -66,7 +66,11 @@ export default function FormularioIncidencia() {
         return;
       }
       if (archivos.length > 0) await subirArchivos(json.data.idIncidencia, archivos);
-      router.push(`/incidencias/${json.data.idIncidencia}`);
+      if (onExito) {
+        onExito(json.data.idIncidencia);
+      } else {
+        router.push(`/incidencias/${json.data.idIncidencia}`);
+      }
       router.refresh();
     } catch {
       setMensaje("No se pudo guardar la incidencia. Compruebe su conexión.");
