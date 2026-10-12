@@ -2,11 +2,39 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { comprimirImagen } from "@/lib/compresionImagen";
-import { CATALOGOS, PRIORIDADES } from "@/lib/constants";
+import { PRIORIDADES, type OpcionCatalogo } from "@/lib/constants";
 
-export default function FormularioIncidencia({ onExito }: { onExito?: (idIncidencia: string) => void }) {
+export interface ValoresIncidencia {
+  titulo: string;
+  descripcion: string;
+  tipoUbicacion: "BLOQUE" | "ZONA_COMUN";
+  bloque: string;
+  planta: string;
+  zonaComun: string;
+  ubicacionDetalle: string;
+  categoria: string;
+  prioridad: string;
+  confidencial: boolean;
+}
+
+interface CatalogosFormulario {
+  BLOQUES: OpcionCatalogo[];
+  PLANTAS: OpcionCatalogo[];
+  ZONAS: OpcionCatalogo[];
+  CATEGORIAS: OpcionCatalogo[];
+}
+
+interface PropiedadesFormularioIncidencia {
+  catalogos: CatalogosFormulario;
+  onExito?: (idIncidencia: string) => void;
+  idIncidencia?: string;
+  valoresIniciales?: ValoresIncidencia;
+}
+
+export default function FormularioIncidencia({ catalogos, onExito, idIncidencia, valoresIniciales }: PropiedadesFormularioIncidencia) {
+  const modoEdicion = !!idIncidencia;
   const router = useRouter();
-  const [tipoUbicacion, setTipoUbicacion] = useState<"BLOQUE" | "ZONA_COMUN">("BLOQUE");
+  const [tipoUbicacion, setTipoUbicacion] = useState<"BLOQUE" | "ZONA_COMUN">(valoresIniciales?.tipoUbicacion || "BLOQUE");
   const [enviando, setEnviando] = useState(false);
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [mensaje, setMensaje] = useState("");
@@ -53,8 +81,8 @@ export default function FormularioIncidencia({ onExito }: { onExito?: (idInciden
       confidencial: form.get("confidencial") === "on",
     };
     try {
-      const resp = await fetch("/api/incidencias", {
-        method: "POST",
+      const resp = await fetch(modoEdicion ? `/api/incidencias/${idIncidencia}` : "/api/incidencias", {
+        method: modoEdicion ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(datos),
       });
@@ -65,11 +93,12 @@ export default function FormularioIncidencia({ onExito }: { onExito?: (idInciden
         setEnviando(false);
         return;
       }
-      if (archivos.length > 0) await subirArchivos(json.data.idIncidencia, archivos);
+      const idResultante = modoEdicion ? idIncidencia! : json.data.idIncidencia;
+      if (archivos.length > 0) await subirArchivos(idResultante, archivos);
       if (onExito) {
-        onExito(json.data.idIncidencia);
+        onExito(idResultante);
       } else {
-        router.push(`/incidencias/${json.data.idIncidencia}`);
+        router.push(`/incidencias/${idResultante}`);
       }
       router.refresh();
     } catch {
@@ -85,7 +114,14 @@ export default function FormularioIncidencia({ onExito }: { onExito?: (idInciden
         <label className="block text-sm font-medium" htmlFor="titulo">
           Título
         </label>
-        <input id="titulo" name="titulo" required maxLength={120} className="mt-1 w-full rounded-md border p-2" />
+        <input
+          id="titulo"
+          name="titulo"
+          required
+          maxLength={120}
+          defaultValue={valoresIniciales?.titulo}
+          className="mt-1 w-full rounded-md border p-2"
+        />
         {errores.titulo && <p className="text-sm text-marca-700">{errores.titulo}</p>}
       </div>
       <div>
@@ -98,6 +134,7 @@ export default function FormularioIncidencia({ onExito }: { onExito?: (idInciden
           required
           maxLength={4000}
           rows={4}
+          defaultValue={valoresIniciales?.descripcion}
           className="mt-1 w-full rounded-md border p-2"
         />
         {errores.descripcion && <p className="text-sm text-marca-700">{errores.descripcion}</p>}
@@ -132,8 +169,8 @@ export default function FormularioIncidencia({ onExito }: { onExito?: (idInciden
             <label className="block text-sm font-medium" htmlFor="bloque">
               Bloque
             </label>
-            <select id="bloque" name="bloque" className="mt-1 w-full rounded-md border p-2">
-              {CATALOGOS.BLOQUES.map((b) => (
+            <select id="bloque" name="bloque" defaultValue={valoresIniciales?.bloque} className="mt-1 w-full rounded-md border p-2">
+              {catalogos.BLOQUES.map((b) => (
                 <option key={b.codigo} value={b.codigo}>
                   {b.etiqueta}
                 </option>
@@ -145,8 +182,8 @@ export default function FormularioIncidencia({ onExito }: { onExito?: (idInciden
             <label className="block text-sm font-medium" htmlFor="planta">
               Planta
             </label>
-            <select id="planta" name="planta" className="mt-1 w-full rounded-md border p-2">
-              {CATALOGOS.PLANTAS.map((p) => (
+            <select id="planta" name="planta" defaultValue={valoresIniciales?.planta} className="mt-1 w-full rounded-md border p-2">
+              {catalogos.PLANTAS.map((p) => (
                 <option key={p.codigo} value={p.codigo}>
                   {p.etiqueta}
                 </option>
@@ -159,8 +196,8 @@ export default function FormularioIncidencia({ onExito }: { onExito?: (idInciden
           <label className="block text-sm font-medium" htmlFor="zonaComun">
             Zona común
           </label>
-          <select id="zonaComun" name="zonaComun" className="mt-1 w-full rounded-md border p-2">
-            {CATALOGOS.ZONAS.map((z) => (
+          <select id="zonaComun" name="zonaComun" defaultValue={valoresIniciales?.zonaComun} className="mt-1 w-full rounded-md border p-2">
+            {catalogos.ZONAS.map((z) => (
               <option key={z.codigo} value={z.codigo}>
                 {z.etiqueta}
               </option>
@@ -173,15 +210,21 @@ export default function FormularioIncidencia({ onExito }: { onExito?: (idInciden
         <label className="block text-sm font-medium" htmlFor="ubicacionDetalle">
           Detalle de ubicación (opcional)
         </label>
-        <input id="ubicacionDetalle" name="ubicacionDetalle" maxLength={200} className="mt-1 w-full rounded-md border p-2" />
+        <input
+          id="ubicacionDetalle"
+          name="ubicacionDetalle"
+          maxLength={200}
+          defaultValue={valoresIniciales?.ubicacionDetalle}
+          className="mt-1 w-full rounded-md border p-2"
+        />
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium" htmlFor="categoria">
             Categoría
           </label>
-          <select id="categoria" name="categoria" className="mt-1 w-full rounded-md border p-2">
-            {CATALOGOS.CATEGORIAS.map((c) => (
+          <select id="categoria" name="categoria" defaultValue={valoresIniciales?.categoria} className="mt-1 w-full rounded-md border p-2">
+            {catalogos.CATEGORIAS.map((c) => (
               <option key={c.codigo} value={c.codigo}>
                 {c.etiqueta}
               </option>
@@ -193,7 +236,7 @@ export default function FormularioIncidencia({ onExito }: { onExito?: (idInciden
           <label className="block text-sm font-medium" htmlFor="prioridad">
             Prioridad
           </label>
-          <select id="prioridad" name="prioridad" defaultValue="MEDIA" className="mt-1 w-full rounded-md border p-2">
+          <select id="prioridad" name="prioridad" defaultValue={valoresIniciales?.prioridad || "MEDIA"} className="mt-1 w-full rounded-md border p-2">
             {PRIORIDADES.map((p) => (
               <option key={p} value={p}>
                 {p}
@@ -203,22 +246,25 @@ export default function FormularioIncidencia({ onExito }: { onExito?: (idInciden
           {errores.prioridad && <p className="text-sm text-marca-700">{errores.prioridad}</p>}
         </div>
       </div>
-      <div>
-        <label className="block text-sm font-medium" htmlFor="imagenes">
-          Fotos (opcional)
-        </label>
-        <input type="file" id="imagenes" name="imagenes" accept=".jpg,.jpeg,.png,.webp" multiple className="mt-1 w-full" />
-        <small className="text-gray-500">Puede seleccionar varias. Se reducen de tamaño automáticamente al guardar.</small>
-      </div>
+      {!modoEdicion && (
+        <div>
+          <label className="block text-sm font-medium" htmlFor="imagenes">
+            Fotos (opcional)
+          </label>
+          <input type="file" id="imagenes" name="imagenes" accept=".jpg,.jpeg,.png,.webp" multiple className="mt-1 w-full" />
+          <small className="text-gray-500">Puede seleccionar varias. Se reducen de tamaño automáticamente al guardar.</small>
+        </div>
+      )}
       <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" name="confidencial" /> Marcar como información confidencial
+        <input type="checkbox" name="confidencial" defaultChecked={valoresIniciales?.confidencial} /> Marcar como información
+        confidencial
       </label>
       <button
         type="submit"
         disabled={enviando}
         className="rounded-md bg-marca-500 px-4 py-2 font-semibold text-white hover:bg-marca-600 disabled:opacity-50"
       >
-        {enviando ? "Guardando…" : "Guardar incidencia"}
+        {enviando ? "Guardando…" : modoEdicion ? "Guardar cambios" : "Guardar incidencia"}
       </button>
     </form>
   );

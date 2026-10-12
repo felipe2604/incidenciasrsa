@@ -64,6 +64,7 @@ export interface Comentario {
 export interface IncidenciaProyectada {
   idIncidencia: string;
   fechaCreacion: string;
+  usuarioCreador: string;
   titulo: string;
   descripcion: string;
   tipoUbicacion: TipoUbicacion;

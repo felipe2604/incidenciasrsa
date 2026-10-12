@@ -1,6 +1,6 @@
 import { ESTADOS, ESTADOS_PENDIENTES, ESTADOS_SIN_TRABAJO_PENDIENTE, HOJAS, LIMITES, ROLES, TIPO_UBICACION, TRANSICIONES_ESTADO, type Estado } from "./constants";
 import { actualizarCelda, agregarFila, generarSiguienteId, leerFilasComoObjetos, obtenerEncabezados } from "./sheets";
-import { ErrorAplicacion, incidenciaEnAmbito, listaAmbito, usuarioTieneAmbitoTotal, verificarPermiso } from "./permissions";
+import { ErrorAplicacion, incidenciaEnAmbito, listaAmbito, tienePermiso, usuarioTieneAmbitoTotal, verificarPermiso } from "./permissions";
 import { sanearTextoEntrada, validarComentario, validarIncidencia, type DatosIncidenciaEntrada } from "./validaciones";
 import { registrarAuditoria } from "./auditoria";
 import type { Incidencia, IncidenciaProyectada, Usuario } from "./types";
@@ -12,6 +12,7 @@ export function proyectarIncidencia(inc: Incidencia, actor: Usuario): Incidencia
   return {
     idIncidencia: inc.id_incidencia,
     fechaCreacion: inc.fecha_creacion,
+    usuarioCreador: inc.usuario_creador,
     titulo: inc.titulo,
     descripcion: esConfidencial && !puedeVerConfidencial ? "(Información confidencial)" : inc.descripcion,
     tipoUbicacion: inc.tipo_ubicacion,
@@ -160,6 +161,64 @@ export async function crearIncidencia(actor: Usuario, datos: DatosIncidenciaNuev
 
   await registrarAuditoria("CREAR_INCIDENCIA", "INCIDENCIA", idNuevo, "Incidencia creada", "OK");
   return idNuevo;
+}
+
+export type DatosIncidenciaEdicion = DatosIncidenciaNueva;
+
+// Edición de los datos descriptivos de una incidencia ya existente (no toca
+// estado/responsable, que se gestionan con cambiarEstadoIncidencia).
+export async function actualizarIncidencia(actor: Usuario, idIncidencia: string, datos: DatosIncidenciaEdicion): Promise<void> {
+  const { objeto, numeroFila, encabezados } = await buscarFilaIncidencia(idIncidencia);
+  const inc = objeto as Incidencia;
+  if (!incidenciaEnAmbito(actor, inc)) throw new ErrorAplicacion("PERMISO_DENEGADO", "No tiene acceso a esta incidencia.");
+
+  const puedeEditarTodas = tienePermiso(actor, "INCIDENCIAS_EDITAR");
+  const puedeEditarPropioAmbito = tienePermiso(actor, "INCIDENCIAS_EDITAR_PROPIO_AMBITO");
+  if (!puedeEditarTodas && !puedeEditarPropioAmbito) {
+    throw new ErrorAplicacion("PERMISO_DENEGADO", "No tiene permisos para editar incidencias.");
+  }
+  if (!puedeEditarTodas && inc.usuario_creador !== actor.id_usuario) {
+    throw new ErrorAplicacion("PERMISO_DENEGADO", "Solo puede editar las incidencias que usted creó.");
+  }
+
+  const limpio = validarIncidencia(datos);
+
+  if (actor.rol === ROLES.VOCAL || actor.rol === ROLES.COORDINADOR) {
+    if (
+      datos.tipoUbicacion === TIPO_UBICACION.BLOQUE &&
+      !usuarioTieneAmbitoTotal(actor, "BLOQUE") &&
+      !listaAmbito(actor.ambito_bloques).includes(datos.bloque || "")
+    ) {
+      throw new ErrorAplicacion("PERMISO_DENEGADO", "No tiene acceso a ese bloque.");
+    }
+    if (
+      datos.tipoUbicacion === TIPO_UBICACION.ZONA_COMUN &&
+      !usuarioTieneAmbitoTotal(actor, "ZONA") &&
+      !listaAmbito(actor.ambito_zonas).includes(datos.zonaComun || "")
+    ) {
+      throw new ErrorAplicacion("PERMISO_DENEGADO", "No tiene acceso a esa zona.");
+    }
+  }
+
+  const ahora = new Date().toISOString();
+  await actualizarCelda(HOJAS.INCIDENCIAS, numeroFila, encabezados, {
+    titulo: limpio.titulo,
+    descripcion: limpio.descripcion,
+    tipo_ubicacion: datos.tipoUbicacion,
+    bloque: datos.tipoUbicacion === TIPO_UBICACION.BLOQUE ? datos.bloque || "" : "",
+    planta: datos.tipoUbicacion === TIPO_UBICACION.BLOQUE ? datos.planta || "" : "",
+    zona_comun: datos.tipoUbicacion === TIPO_UBICACION.ZONA_COMUN ? datos.zonaComun || "" : "",
+    ubicacion_detalle: sanearTextoEntrada(datos.ubicacionDetalle, LIMITES.TEXTO_CORTO_MAX),
+    categoria: datos.categoria,
+    prioridad: datos.prioridad,
+    coste_estimado: datos.costeEstimado || "",
+    proveedor: sanearTextoEntrada(datos.proveedor, 150),
+    fecha_prevista_actuacion: datos.fechaPrevistaActuacion || "",
+    confidencial: !!datos.confidencial,
+    fecha_ultima_modificacion: ahora,
+    usuario_ultima_modificacion: actor.id_usuario,
+  });
+  await registrarAuditoria("EDITAR_INCIDENCIA", "INCIDENCIA", idIncidencia, "Incidencia editada", "OK");
 }
 
 export async function cambiarEstadoIncidencia(actor: Usuario, idIncidencia: string, nuevoEstado: string): Promise<void> {

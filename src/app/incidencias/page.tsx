@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { obtenerUsuarioActual } from "@/lib/sesion";
 import { listarIncidencias } from "@/lib/incidencias";
-import { CATALOGOS, ESTADOS, ETIQUETAS_ESTADO, ETIQUETAS_FILTRO_RAPIDO, PRIORIDADES } from "@/lib/constants";
+import { obtenerCatalogos } from "@/lib/catalogos";
+import { ESTADOS, ETIQUETAS_ESTADO, ETIQUETAS_FILTRO_RAPIDO, PRIORIDADES } from "@/lib/constants";
 import AccesoDenegado from "@/components/AccesoDenegado";
 import ModalNuevaIncidencia from "@/components/ModalNuevaIncidencia";
 
@@ -33,6 +34,7 @@ export default async function ListadoIncidenciasPage({
   } catch (e) {
     return <AccesoDenegado mensaje={(e as Error).message} />;
   }
+  const catalogos = await obtenerCatalogos();
 
   const hayFiltros = Boolean(
     parametros.texto || parametros.estado || parametros.prioridad || parametros.categoria || parametros.filtroRapido
@@ -49,7 +51,7 @@ export default async function ListadoIncidenciasPage({
     <div>
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-xl font-semibold">Incidencias</h2>
-        <ModalNuevaIncidencia />
+        <ModalNuevaIncidencia catalogos={catalogos} />
       </div>
 
       {parametros.filtroRapido && (
@@ -90,7 +92,7 @@ export default async function ListadoIncidenciasPage({
         </select>
         <select name="categoria" defaultValue={parametros.categoria || ""} className="rounded-md border p-2 text-sm">
           <option value="">Toda categoría</option>
-          {CATALOGOS.CATEGORIAS.map((c) => (
+          {catalogos.CATEGORIAS.map((c) => (
             <option key={c.codigo} value={c.codigo}>
               {c.etiqueta}
             </option>

@@ -2,7 +2,8 @@ import Link from "next/link";
 import { obtenerUsuarioActual } from "@/lib/sesion";
 import { tienePermiso } from "@/lib/permissions";
 import { obtenerInformeResumen } from "@/lib/informes";
-import { CATALOGOS, ESTADOS, ETIQUETAS_ESTADO, PRIORIDADES } from "@/lib/constants";
+import { obtenerCatalogos } from "@/lib/catalogos";
+import { ESTADOS, ETIQUETAS_ESTADO, PRIORIDADES } from "@/lib/constants";
 import AccesoDenegado from "@/components/AccesoDenegado";
 
 type ParametrosBusqueda = { texto?: string; estado?: string; prioridad?: string; categoria?: string };
@@ -30,6 +31,7 @@ export default async function InformesPage({ searchParams }: { searchParams: Pro
     categoria: parametros.categoria || undefined,
   };
   const resumen = await obtenerInformeResumen(actor, filtros);
+  const catalogos = await obtenerCatalogos();
   const queryCsv = new URLSearchParams(Object.entries(filtros).filter(([, v]) => v) as [string, string][]).toString();
 
   const tarjetas = [
@@ -79,7 +81,7 @@ export default async function InformesPage({ searchParams }: { searchParams: Pro
         </select>
         <select name="categoria" defaultValue={parametros.categoria || ""} className="rounded-md border p-2 text-sm">
           <option value="">Toda categoría</option>
-          {CATALOGOS.CATEGORIAS.map((c) => (
+          {catalogos.CATEGORIAS.map((c) => (
             <option key={c.codigo} value={c.codigo}>
               {c.etiqueta}
             </option>
@@ -121,7 +123,7 @@ export default async function InformesPage({ searchParams }: { searchParams: Pro
                 <tbody>
                   {Object.entries(resumen.porCategoria).map(([codigo, total]) => (
                     <tr key={codigo} className="border-b border-marca-50">
-                      <td className="py-1">{CATALOGOS.CATEGORIAS.find((c) => c.codigo === codigo)?.etiqueta || codigo}</td>
+                      <td className="py-1">{catalogos.CATEGORIAS.find((c) => c.codigo === codigo)?.etiqueta || codigo}</td>
                       <td className="py-1 text-right">{total}</td>
                     </tr>
                   ))}

@@ -53,3 +53,18 @@ export const esquemaUsuario = z.object({
   ambitoZonas: z.string().max(500).nullish().transform((v) => v ?? undefined),
   activo: z.boolean().optional(),
 });
+
+const CLAVES_CATALOGO = ["BLOQUE", "PLANTA", "ZONA", "CATEGORIA"] as const;
+
+export const esquemaOpcionCatalogo = z.object({
+  clave: z.enum(CLAVES_CATALOGO),
+  codigo: z.string().min(1).max(50),
+  etiqueta: z.string().min(1).max(150),
+  orden: z.number().optional(),
+  activo: z.boolean().optional(),
+});
+
+export const esquemaEliminarCatalogo = z.object({
+  clave: z.enum(CLAVES_CATALOGO),
+  codigo: z.string().min(1).max(50),
+});

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { obtenerUsuarioActual } from "@/lib/sesion";
 import { obtenerDatosPanel } from "@/lib/panel";
-import { CATALOGOS, ETIQUETAS_ESTADO, ETIQUETAS_FILTRO_RAPIDO, type OpcionCatalogo } from "@/lib/constants";
+import { obtenerCatalogos } from "@/lib/catalogos";
+import { ETIQUETAS_ESTADO, ETIQUETAS_FILTRO_RAPIDO, type OpcionCatalogo } from "@/lib/constants";
 import AccesoDenegado from "@/components/AccesoDenegado";
 import PanelGraficos from "@/components/PanelGraficos";
 
@@ -26,6 +27,7 @@ export default async function PanelPage() {
   } catch (e) {
     return <AccesoDenegado mensaje={(e as Error).message} />;
   }
+  const catalogos = await obtenerCatalogos();
 
   return (
     <div>
@@ -49,8 +51,8 @@ export default async function PanelPage() {
         porZona={datos.porZona}
         porBloque={datos.porBloque}
         etiquetasEstado={ETIQUETAS_ESTADO}
-        etiquetasZona={mapaEtiquetas(CATALOGOS.ZONAS)}
-        etiquetasBloque={mapaEtiquetas(CATALOGOS.BLOQUES)}
+        etiquetasZona={mapaEtiquetas(catalogos.ZONAS)}
+        etiquetasBloque={mapaEtiquetas(catalogos.BLOQUES)}
       />
 
       <div className="mt-6">

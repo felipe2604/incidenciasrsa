@@ -2,8 +2,13 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import FormularioIncidencia from "./FormularioIncidencia";
+import type { OpcionCatalogo } from "@/lib/constants";
 
-export default function ModalNuevaIncidencia() {
+interface PropiedadesModalNuevaIncidencia {
+  catalogos: { BLOQUES: OpcionCatalogo[]; PLANTAS: OpcionCatalogo[]; ZONAS: OpcionCatalogo[]; CATEGORIAS: OpcionCatalogo[] };
+}
+
+export default function ModalNuevaIncidencia({ catalogos }: PropiedadesModalNuevaIncidencia) {
   const router = useRouter();
   const [abierto, setAbierto] = useState(false);
 
@@ -48,7 +53,7 @@ export default function ModalNuevaIncidencia() {
                 ×
               </button>
             </div>
-            <FormularioIncidencia onExito={alCrear} />
+            <FormularioIncidencia catalogos={catalogos} onExito={alCrear} />
           </div>
         </div>
       )}

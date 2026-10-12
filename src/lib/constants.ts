@@ -69,6 +69,18 @@ export const ETIQUETAS_ESTADO: Record<Estado, string> = {
 export const TIPO_UBICACION = { BLOQUE: "BLOQUE", ZONA_COMUN: "ZONA_COMUN" } as const;
 export type TipoUbicacion = (typeof TIPO_UBICACION)[keyof typeof TIPO_UBICACION];
 
+// Definición de los catálogos editables desde Administración (clave = marca
+// guardada en la pestaña Configuracion, grupo = nombre usado por los
+// formularios públicos, en plural, igual que el antiguo CATALOGOS estático).
+export const DEFINICION_CATALOGOS = [
+  { clave: "BLOQUE", grupo: "BLOQUES", etiqueta: "Bloques" },
+  { clave: "PLANTA", grupo: "PLANTAS", etiqueta: "Plantas" },
+  { clave: "ZONA", grupo: "ZONAS", etiqueta: "Zonas comunes" },
+  { clave: "CATEGORIA", grupo: "CATEGORIAS", etiqueta: "Categorías" },
+] as const;
+export type ClaveCatalogo = (typeof DEFINICION_CATALOGOS)[number]["clave"];
+export type GrupoCatalogo = (typeof DEFINICION_CATALOGOS)[number]["grupo"];
+
 export const ESTADOS_SIN_TRABAJO_PENDIENTE: Estado[] = ["RESUELTA", "CERRADA", "CANCELADA"];
 export const ESTADOS_PENDIENTES: Estado[] = ["PENDIENTE_REVISION", "PENDIENTE_PROVEEDOR", "PENDIENTE_PRESUPUESTO"];
 
