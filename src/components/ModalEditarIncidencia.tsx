@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import FormularioIncidencia, { type ValoresIncidencia } from "./FormularioIncidencia";
 import type { OpcionCatalogo } from "@/lib/constants";
@@ -13,17 +13,26 @@ interface PropiedadesModalEditarIncidencia {
 export default function ModalEditarIncidencia({ idIncidencia, valoresIniciales, catalogos }: PropiedadesModalEditarIncidencia) {
   const router = useRouter();
   const [abierto, setAbierto] = useState(false);
+  const [huboCambios, setHuboCambios] = useState(false);
+
+  function intentarCerrar() {
+    if (huboCambios && !window.confirm("Hay cambios sin guardar. ¿Desea cerrar sin guardarlos?")) return;
+    setAbierto(false);
+    setHuboCambios(false);
+  }
+  const intentarCerrarRef = useCallback(intentarCerrar, [huboCambios]);
 
   useEffect(() => {
     if (!abierto) return;
     function alPulsarTecla(e: KeyboardEvent) {
-      if (e.key === "Escape") setAbierto(false);
+      if (e.key === "Escape") intentarCerrarRef();
     }
     document.addEventListener("keydown", alPulsarTecla);
     return () => document.removeEventListener("keydown", alPulsarTecla);
-  }, [abierto]);
+  }, [abierto, intentarCerrarRef]);
 
   function alGuardar() {
+    setHuboCambios(false);
     setAbierto(false);
     router.refresh();
   }
@@ -32,14 +41,14 @@ export default function ModalEditarIncidencia({ idIncidencia, valoresIniciales, 
     <>
       <button
         onClick={() => setAbierto(true)}
-        className="rounded-md border border-marca-400 px-3 py-1 text-sm hover:bg-marca-100"
+        className="rounded-md border-2 border-marca-500 bg-white px-4 py-1.5 text-sm font-semibold text-marca-600 shadow-sm hover:bg-marca-500 hover:text-white"
       >
-        Editar
+        ✎ Editar
       </button>
       {abierto && (
         <div
           className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:items-center"
-          onClick={() => setAbierto(false)}
+          onClick={intentarCerrar}
         >
           <div
             className="my-8 w-full max-w-lg rounded-lg bg-white p-4 shadow-xl sm:p-6"
@@ -48,7 +57,7 @@ export default function ModalEditarIncidencia({ idIncidencia, valoresIniciales, 
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold">Editar incidencia</h2>
               <button
-                onClick={() => setAbierto(false)}
+                onClick={intentarCerrar}
                 aria-label="Cerrar"
                 className="rounded-md px-2 py-1 text-xl leading-none text-gray-500 hover:bg-marca-100/50"
               >
@@ -60,6 +69,7 @@ export default function ModalEditarIncidencia({ idIncidencia, valoresIniciales, 
               idIncidencia={idIncidencia}
               valoresIniciales={valoresIniciales}
               onExito={alGuardar}
+              onCambio={() => setHuboCambios(true)}
             />
           </div>
         </div>

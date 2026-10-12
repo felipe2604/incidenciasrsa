@@ -128,11 +128,21 @@ export default function GestionCatalogos({ catalogos }: { catalogos: Record<Grup
                 <td className="whitespace-nowrap px-3 py-2">{o.etiqueta}</td>
                 <td className="whitespace-nowrap px-3 py-2">{o.activo ? "Sí" : "No"}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-right">
-                  <button onClick={() => abrirEdicion(o)} className="mr-3 text-marca-600 underline">
-                    Editar
+                  <button
+                    onClick={() => abrirEdicion(o)}
+                    className="mr-2 rounded-md border border-marca-400 px-3 py-1 text-xs font-semibold text-marca-600 hover:bg-marca-500 hover:text-white"
+                  >
+                    ✎ Editar
                   </button>
-                  <button onClick={() => alternarActivo(o)} className="text-gray-600 underline">
-                    {o.activo ? "Desactivar" : "Activar"}
+                  <button
+                    onClick={() => alternarActivo(o)}
+                    className={
+                      o.activo
+                        ? "rounded-md border border-red-300 px-3 py-1 text-xs font-semibold text-red-600 hover:bg-red-600 hover:text-white"
+                        : "rounded-md border border-green-300 px-3 py-1 text-xs font-semibold text-green-700 hover:bg-green-600 hover:text-white"
+                    }
+                  >
+                    {o.activo ? "✕ Desactivar" : "✓ Activar"}
                   </button>
                 </td>
               </tr>

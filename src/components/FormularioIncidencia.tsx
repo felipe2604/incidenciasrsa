@@ -27,11 +27,12 @@ interface CatalogosFormulario {
 interface PropiedadesFormularioIncidencia {
   catalogos: CatalogosFormulario;
   onExito?: (idIncidencia: string) => void;
+  onCambio?: () => void;
   idIncidencia?: string;
   valoresIniciales?: ValoresIncidencia;
 }
 
-export default function FormularioIncidencia({ catalogos, onExito, idIncidencia, valoresIniciales }: PropiedadesFormularioIncidencia) {
+export default function FormularioIncidencia({ catalogos, onExito, onCambio, idIncidencia, valoresIniciales }: PropiedadesFormularioIncidencia) {
   const modoEdicion = !!idIncidencia;
   const router = useRouter();
   const [tipoUbicacion, setTipoUbicacion] = useState<"BLOQUE" | "ZONA_COMUN">(valoresIniciales?.tipoUbicacion || "BLOQUE");
@@ -108,7 +109,7 @@ export default function FormularioIncidencia({ catalogos, onExito, idIncidencia,
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
+    <form onSubmit={onSubmit} onChange={onCambio} className="flex flex-col gap-4">
       {mensaje && <p className="rounded-md bg-marca-100/50 p-3 text-marca-900">{mensaje}</p>}
       <div>
         <label className="block text-sm font-medium" htmlFor="titulo">

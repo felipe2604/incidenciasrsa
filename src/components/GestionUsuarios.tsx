@@ -108,8 +108,11 @@ export default function GestionUsuarios({ usuarios }: { usuarios: Usuario[] }) {
                 <td className="whitespace-nowrap px-3 py-2">{u.ambito_zonas || "—"}</td>
                 <td className="whitespace-nowrap px-3 py-2">{u.activo ? "Sí" : "No"}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-right">
-                  <button onClick={() => abrirEdicion(u)} className="text-marca-600 underline">
-                    Editar
+                  <button
+                    onClick={() => abrirEdicion(u)}
+                    className="rounded-md border border-marca-400 px-3 py-1 text-xs font-semibold text-marca-600 hover:bg-marca-500 hover:text-white"
+                  >
+                    ✎ Editar
                   </button>
                 </td>
               </tr>

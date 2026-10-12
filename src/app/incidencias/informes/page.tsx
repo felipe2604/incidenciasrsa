@@ -1,16 +1,12 @@
 import Link from "next/link";
 import { obtenerUsuarioActual } from "@/lib/sesion";
 import { tienePermiso } from "@/lib/permissions";
-import { obtenerInformeResumen } from "@/lib/informes";
+import { formatearMoneda, obtenerInformeResumen } from "@/lib/informes";
 import { obtenerCatalogos } from "@/lib/catalogos";
 import { ESTADOS, ETIQUETAS_ESTADO, PRIORIDADES } from "@/lib/constants";
 import AccesoDenegado from "@/components/AccesoDenegado";
 
 type ParametrosBusqueda = { texto?: string; estado?: string; prioridad?: string; categoria?: string };
-
-function formatearMoneda(valor: number): string {
-  return valor.toLocaleString("es-ES", { style: "currency", currency: "EUR" });
-}
 
 export default async function InformesPage({ searchParams }: { searchParams: Promise<ParametrosBusqueda> }) {
   const parametros = await searchParams;
@@ -47,12 +43,20 @@ export default async function InformesPage({ searchParams }: { searchParams: Pro
     <div>
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-xl font-semibold">Informes</h2>
-        <a
-          href={`/api/informes/csv${queryCsv ? `?${queryCsv}` : ""}`}
-          className="w-full rounded-md bg-marca-500 px-4 py-2 text-center font-semibold text-white hover:bg-marca-600 sm:w-auto"
-        >
-          Exportar CSV
-        </a>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <a
+            href={`/api/informes/pdf${queryCsv ? `?${queryCsv}` : ""}`}
+            className="w-full rounded-md bg-marca-700 px-4 py-2 text-center font-semibold text-white hover:bg-marca-800 sm:w-auto"
+          >
+            Exportar PDF
+          </a>
+          <a
+            href={`/api/informes/csv${queryCsv ? `?${queryCsv}` : ""}`}
+            className="w-full rounded-md bg-marca-500 px-4 py-2 text-center font-semibold text-white hover:bg-marca-600 sm:w-auto"
+          >
+            Exportar CSV
+          </a>
+        </div>
       </div>
 
       <form className="mb-5 grid grid-cols-2 gap-2 rounded-md border border-marca-200 bg-white p-3 sm:grid-cols-4 lg:grid-cols-5">

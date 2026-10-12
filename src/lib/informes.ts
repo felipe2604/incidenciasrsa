@@ -74,6 +74,10 @@ function sanearParaCsv(valor: unknown): string {
   return /^[=+\-@]/.test(texto) ? `'${texto}` : texto;
 }
 
+export function formatearMoneda(valor: number): string {
+  return valor.toLocaleString("es-ES", { style: "currency", currency: "EUR" });
+}
+
 export function generarCsvIncidencias(lista: IncidenciaProyectada[]): string {
   const encabezados = [
     "ID",
