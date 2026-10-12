@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { obtenerUsuarioActual } from "@/lib/sesion";
 import { listarIncidencias } from "@/lib/incidencias";
-import { CATALOGOS, ESTADOS, ETIQUETAS_ESTADO, PRIORIDADES } from "@/lib/constants";
+import { CATALOGOS, ESTADOS, ETIQUETAS_ESTADO, ETIQUETAS_FILTRO_RAPIDO, PRIORIDADES } from "@/lib/constants";
 import AccesoDenegado from "@/components/AccesoDenegado";
 import ModalNuevaIncidencia from "@/components/ModalNuevaIncidencia";
 
@@ -12,7 +12,7 @@ const COLOR_PRIORIDAD: Record<string, string> = {
   URGENTE: "border-l-marca-700",
 };
 
-type ParametrosBusqueda = { texto?: string; estado?: string; prioridad?: string; categoria?: string };
+type ParametrosBusqueda = { texto?: string; estado?: string; prioridad?: string; categoria?: string; filtroRapido?: string };
 
 export default async function ListadoIncidenciasPage({
   searchParams,
@@ -28,12 +28,22 @@ export default async function ListadoIncidenciasPage({
       estado: parametros.estado || undefined,
       prioridad: parametros.prioridad || undefined,
       categoria: parametros.categoria || undefined,
+      filtroRapido: parametros.filtroRapido || undefined,
     });
   } catch (e) {
     return <AccesoDenegado mensaje={(e as Error).message} />;
   }
 
-  const hayFiltros = Boolean(parametros.texto || parametros.estado || parametros.prioridad || parametros.categoria);
+  const hayFiltros = Boolean(
+    parametros.texto || parametros.estado || parametros.prioridad || parametros.categoria || parametros.filtroRapido
+  );
+  const parametrosSinFiltroRapido = new URLSearchParams();
+  if (parametros.texto) parametrosSinFiltroRapido.set("texto", parametros.texto);
+  if (parametros.estado) parametrosSinFiltroRapido.set("estado", parametros.estado);
+  if (parametros.prioridad) parametrosSinFiltroRapido.set("prioridad", parametros.prioridad);
+  if (parametros.categoria) parametrosSinFiltroRapido.set("categoria", parametros.categoria);
+  const cadena = parametrosSinFiltroRapido.toString();
+  const hrefSinFiltroRapido = `/incidencias${cadena ? `?${cadena}` : ""}`;
 
   return (
     <div>
@@ -42,7 +52,19 @@ export default async function ListadoIncidenciasPage({
         <ModalNuevaIncidencia />
       </div>
 
+      {parametros.filtroRapido && (
+        <div className="mb-3 flex items-center gap-2">
+          <span className="rounded-full bg-marca-500 px-3 py-1 text-sm text-white">
+            Filtro: {ETIQUETAS_FILTRO_RAPIDO[parametros.filtroRapido] || parametros.filtroRapido}
+          </span>
+          <Link href={hrefSinFiltroRapido} className="text-sm text-marca-600 underline">
+            Quitar
+          </Link>
+        </div>
+      )}
+
       <form className="mb-5 grid grid-cols-2 gap-2 rounded-md border border-marca-200 bg-white p-3 sm:grid-cols-4 lg:grid-cols-5">
+        <input type="hidden" name="filtroRapido" value={parametros.filtroRapido || ""} />
         <input
           type="text"
           name="texto"

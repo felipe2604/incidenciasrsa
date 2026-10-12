@@ -70,6 +70,18 @@ export const TIPO_UBICACION = { BLOQUE: "BLOQUE", ZONA_COMUN: "ZONA_COMUN" } as 
 export type TipoUbicacion = (typeof TIPO_UBICACION)[keyof typeof TIPO_UBICACION];
 
 export const ESTADOS_SIN_TRABAJO_PENDIENTE: Estado[] = ["RESUELTA", "CERRADA", "CANCELADA"];
+export const ESTADOS_PENDIENTES: Estado[] = ["PENDIENTE_REVISION", "PENDIENTE_PROVEEDOR", "PENDIENTE_PRESUPUESTO"];
+
+// Códigos de filtro rápido del panel principal — equivalente a
+// ETIQUETAS_FILTRO_RAPIDO de JsCliente.html.
+export const ETIQUETAS_FILTRO_RAPIDO: Record<string, string> = {
+  ABIERTAS: "Incidencias abiertas",
+  URGENTES: "Urgentes",
+  PENDIENTES: "Pendientes",
+  VENCIDAS: "Vencidas",
+  ASIGNADAS_A_MI: "Asignadas a mí",
+  FINALIZADAS: "Finalizadas",
+};
 
 export const LIMITES = {
   TITULO_MAX: 120,

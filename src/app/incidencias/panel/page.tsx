@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { obtenerUsuarioActual } from "@/lib/sesion";
 import { obtenerDatosPanel } from "@/lib/panel";
-import { CATALOGOS, ETIQUETAS_ESTADO, type OpcionCatalogo } from "@/lib/constants";
+import { CATALOGOS, ETIQUETAS_ESTADO, ETIQUETAS_FILTRO_RAPIDO, type OpcionCatalogo } from "@/lib/constants";
 import AccesoDenegado from "@/components/AccesoDenegado";
 import PanelGraficos from "@/components/PanelGraficos";
 
@@ -10,12 +10,12 @@ function mapaEtiquetas(lista: OpcionCatalogo[]): Record<string, string> {
 }
 
 const TARJETAS = [
-  { clave: "totalAbiertas", etiqueta: "Incidencias abiertas" },
-  { clave: "urgentes", etiqueta: "Urgentes" },
-  { clave: "pendientes", etiqueta: "Pendientes" },
-  { clave: "vencidas", etiqueta: "Vencidas" },
-  { clave: "asignadasAMi", etiqueta: "Asignadas a mí" },
-  { clave: "finalizadas", etiqueta: "Finalizadas" },
+  { clave: "totalAbiertas", filtro: "ABIERTAS" },
+  { clave: "urgentes", filtro: "URGENTES" },
+  { clave: "pendientes", filtro: "PENDIENTES" },
+  { clave: "vencidas", filtro: "VENCIDAS" },
+  { clave: "asignadasAMi", filtro: "ASIGNADAS_A_MI" },
+  { clave: "finalizadas", filtro: "FINALIZADAS" },
 ] as const;
 
 export default async function PanelPage() {
@@ -33,10 +33,14 @@ export default async function PanelPage() {
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {TARJETAS.map((t) => (
-          <div key={t.clave} className="rounded-md border border-marca-200 bg-white p-3 text-center shadow-sm">
+          <Link
+            key={t.clave}
+            href={`/incidencias?filtroRapido=${t.filtro}`}
+            className="rounded-md border border-marca-200 bg-white p-3 text-center shadow-sm transition hover:border-marca-400 hover:shadow-md"
+          >
             <div className="text-2xl font-bold text-marca-700">{datos[t.clave]}</div>
-            <div className="text-xs text-gray-600">{t.etiqueta}</div>
-          </div>
+            <div className="text-xs text-gray-600">{ETIQUETAS_FILTRO_RAPIDO[t.filtro]}</div>
+          </Link>
         ))}
       </div>
 

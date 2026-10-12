@@ -1,9 +1,7 @@
-import { ESTADOS, ESTADOS_SIN_TRABAJO_PENDIENTE, HOJAS, TIPO_UBICACION, type Estado } from "./constants";
+import { ESTADOS, ESTADOS_PENDIENTES, ESTADOS_SIN_TRABAJO_PENDIENTE, HOJAS, TIPO_UBICACION, type Estado } from "./constants";
 import { leerFilasComoObjetos } from "./sheets";
 import { incidenciaEnAmbito } from "./permissions";
 import type { Incidencia, Usuario } from "./types";
-
-const ESTADOS_PENDIENTES: Estado[] = [ESTADOS.PENDIENTE_REVISION, ESTADOS.PENDIENTE_PROVEEDOR, ESTADOS.PENDIENTE_PRESUPUESTO];
 
 export interface IncidenciaReciente {
   idIncidencia: string;

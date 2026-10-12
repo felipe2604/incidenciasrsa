@@ -1,4 +1,4 @@
-import { ESTADOS, HOJAS, LIMITES, ROLES, TIPO_UBICACION, TRANSICIONES_ESTADO, type Estado } from "./constants";
+import { ESTADOS, ESTADOS_PENDIENTES, ESTADOS_SIN_TRABAJO_PENDIENTE, HOJAS, LIMITES, ROLES, TIPO_UBICACION, TRANSICIONES_ESTADO, type Estado } from "./constants";
 import { actualizarCelda, agregarFila, generarSiguienteId, leerFilasComoObjetos, obtenerEncabezados } from "./sheets";
 import { ErrorAplicacion, incidenciaEnAmbito, listaAmbito, usuarioTieneAmbitoTotal, verificarPermiso } from "./permissions";
 import { sanearTextoEntrada, validarComentario, validarIncidencia, type DatosIncidenciaEntrada } from "./validaciones";
@@ -40,6 +40,32 @@ export interface FiltrosIncidencias {
   estado?: string;
   prioridad?: string;
   categoria?: string;
+  // Mismos codigos que las tarjetas del panel (ABIERTAS, URGENTES, PENDIENTES,
+  // VENCIDAS, ASIGNADAS_A_MI, FINALIZADAS), para que el listado muestre
+  // exactamente el conjunto que dio lugar al contador pulsado.
+  filtroRapido?: string;
+}
+
+function cumpleFiltroRapido(inc: Incidencia, actor: Usuario, filtroRapido: string): boolean {
+  const abierta = !ESTADOS_SIN_TRABAJO_PENDIENTE.includes(inc.estado);
+  switch (filtroRapido) {
+    case "ABIERTAS":
+      return abierta;
+    case "URGENTES":
+      return abierta && inc.prioridad === "URGENTE";
+    case "PENDIENTES":
+      return abierta && ESTADOS_PENDIENTES.includes(inc.estado);
+    case "VENCIDAS": {
+      const hoy = new Date().toISOString().slice(0, 10);
+      return abierta && !!inc.fecha_prevista_actuacion && inc.fecha_prevista_actuacion.slice(0, 10) < hoy;
+    }
+    case "ASIGNADAS_A_MI":
+      return abierta && inc.responsable === actor.id_usuario;
+    case "FINALIZADAS":
+      return inc.estado === ESTADOS.RESUELTA || inc.estado === ESTADOS.CERRADA;
+    default:
+      return true;
+  }
 }
 
 export async function listarIncidencias(actor: Usuario, filtros: FiltrosIncidencias = {}): Promise<IncidenciaProyectada[]> {
@@ -51,6 +77,7 @@ export async function listarIncidencias(actor: Usuario, filtros: FiltrosIncidenc
     .filter((inc) => (filtros.estado ? inc.estado === filtros.estado : true))
     .filter((inc) => (filtros.prioridad ? inc.prioridad === filtros.prioridad : true))
     .filter((inc) => (filtros.categoria ? inc.categoria === filtros.categoria : true))
+    .filter((inc) => (filtros.filtroRapido ? cumpleFiltroRapido(inc, actor, filtros.filtroRapido) : true))
     .filter((inc) => {
       if (!filtros.texto) return true;
       const t = filtros.texto.toLowerCase();
