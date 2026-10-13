@@ -3,7 +3,7 @@ import { listarComentarios, obtenerIncidenciaDetalle } from "@/lib/incidencias";
 import { listarArchivosPorIncidencia } from "@/lib/archivos";
 import { tienePermiso } from "@/lib/permissions";
 import { obtenerCatalogos } from "@/lib/catalogos";
-import { TRANSICIONES_ESTADO, type Estado } from "@/lib/constants";
+import { TRANSICIONES_ESTADO, ETIQUETAS_ESTADO, COLORES_ESTADO, type Estado } from "@/lib/constants";
 import AccesoDenegado from "@/components/AccesoDenegado";
 import FormularioComentario from "@/components/FormularioComentario";
 import CambiarEstadoIncidencia from "@/components/CambiarEstadoIncidencia";
@@ -35,6 +35,7 @@ export default async function DetalleIncidenciaPage({ params }: { params: Promis
   const archivosSeguro = archivos.map((a) => ({
     idArchivo: a.id_archivo as string,
     nombreOriginal: a.nombre_original as string,
+    tipoMime: a.tipo_mime as string,
   }));
 
   const puedeCambiarEstado = tienePermiso(actor, "INCIDENCIAS_CAMBIAR_ESTADO");
@@ -44,8 +45,8 @@ export default async function DetalleIncidenciaPage({ params }: { params: Promis
     (tienePermiso(actor, "INCIDENCIAS_EDITAR_PROPIO_AMBITO") && incidencia.usuarioCreador === actor.id_usuario);
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
+    <div className="flex flex-col gap-4">
+      <div className="rounded-md border border-marca-200 bg-white p-4 shadow-sm">
         <div className="flex items-start justify-between gap-2">
           <h2 className="text-xl font-semibold">{incidencia.titulo}</h2>
           {puedeEditar && (
@@ -67,42 +68,77 @@ export default async function DetalleIncidenciaPage({ params }: { params: Promis
             />
           )}
         </div>
-        <p className="text-sm text-gray-500">
+        <p className="mt-1 text-sm text-gray-500">
           {incidencia.idIncidencia} · {incidencia.categoria} · {incidencia.prioridad}
         </p>
-        <span className="mt-2 inline-block rounded-full bg-marca-200 px-3 py-1 text-sm">{incidencia.estado}</span>
+        <span
+          className={`mt-2 inline-block rounded-full px-3 py-1 text-sm font-medium ${
+            COLORES_ESTADO[incidencia.estado as Estado] || "bg-marca-200"
+          }`}
+        >
+          {ETIQUETAS_ESTADO[incidencia.estado as Estado] || incidencia.estado}
+        </span>
+        <p className="mt-3 whitespace-pre-wrap text-gray-700">{incidencia.descripcion}</p>
       </div>
-      <p className="whitespace-pre-wrap">{incidencia.descripcion}</p>
-
 
       {puedeCambiarEstado && transicionesPosibles.length > 0 && (
-        <CambiarEstadoIncidencia idIncidencia={incidencia.idIncidencia} transicionesPosibles={transicionesPosibles} />
+        <div className="rounded-md border border-marca-200 bg-white p-4 shadow-sm">
+          <CambiarEstadoIncidencia idIncidencia={incidencia.idIncidencia} transicionesPosibles={transicionesPosibles} />
+        </div>
       )}
 
-      <section>
-        <h3 className="mb-2 font-semibold">Archivos adjuntos</h3>
+      <section className="rounded-md border border-marca-200 bg-white p-4 shadow-sm">
+        <h3 className="mb-3 font-semibold">Archivos adjuntos</h3>
         {archivosSeguro.length === 0 ? (
           <p className="text-sm text-gray-500">Sin archivos.</p>
         ) : (
-          <ul className="flex flex-col gap-1">
-            {archivosSeguro.map((a) => (
-              <li key={a.idArchivo}>
-                <a
-                  className="text-marca-600 underline"
-                  href={`/api/archivos/${a.idArchivo}/descarga`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {a.nombreOriginal}
-                </a>
-              </li>
-            ))}
-          </ul>
+          <div className="flex flex-col gap-3">
+            {archivosSeguro.some((a) => a.tipoMime?.startsWith("image/")) && (
+              <div className="flex flex-wrap gap-3">
+                {archivosSeguro
+                  .filter((a) => a.tipoMime?.startsWith("image/"))
+                  .map((a) => (
+                    <a
+                      key={a.idArchivo}
+                      href={`/api/archivos/${a.idArchivo}/descarga`}
+                      target="_blank"
+                      rel="noreferrer"
+                      title={a.nombreOriginal}
+                    >
+                      {/* Las imágenes requieren cookie de sesión, por eso se usa <img> directo en vez de next/image */}
+                      <img
+                        src={`/api/archivos/${a.idArchivo}/descarga`}
+                        alt={a.nombreOriginal}
+                        className="h-28 w-28 rounded-md border border-marca-200 object-cover transition hover:opacity-80"
+                      />
+                    </a>
+                  ))}
+              </div>
+            )}
+            {archivosSeguro.some((a) => !a.tipoMime?.startsWith("image/")) && (
+              <ul className="flex flex-col gap-1">
+                {archivosSeguro
+                  .filter((a) => !a.tipoMime?.startsWith("image/"))
+                  .map((a) => (
+                    <li key={a.idArchivo}>
+                      <a
+                        className="text-marca-600 underline"
+                        href={`/api/archivos/${a.idArchivo}/descarga`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {a.nombreOriginal}
+                      </a>
+                    </li>
+                  ))}
+              </ul>
+            )}
+          </div>
         )}
       </section>
 
-      <section>
-        <h3 className="mb-2 font-semibold">Comentarios</h3>
+      <section className="rounded-md border border-marca-200 bg-white p-4 shadow-sm">
+        <h3 className="mb-3 font-semibold">Comentarios</h3>
         <ul className="flex flex-col gap-2">
           {comentarios.map((c) => (
             <li key={c.id_comentario} className="rounded-md bg-marca-100/30 p-2 text-sm">
@@ -113,8 +149,11 @@ export default async function DetalleIncidenciaPage({ params }: { params: Promis
             </li>
           ))}
         </ul>
-        <FormularioComentario idIncidencia={incidencia.idIncidencia} />
+        <div className="mt-3">
+          <FormularioComentario idIncidencia={incidencia.idIncidencia} />
+        </div>
       </section>
     </div>
   );
 }
+

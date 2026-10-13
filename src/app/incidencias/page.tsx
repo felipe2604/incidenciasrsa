@@ -2,7 +2,7 @@ import Link from "next/link";
 import { obtenerUsuarioActual } from "@/lib/sesion";
 import { listarIncidencias } from "@/lib/incidencias";
 import { obtenerCatalogos } from "@/lib/catalogos";
-import { ESTADOS, ETIQUETAS_ESTADO, ETIQUETAS_FILTRO_RAPIDO, PRIORIDADES } from "@/lib/constants";
+import { ESTADOS, ETIQUETAS_ESTADO, ETIQUETAS_FILTRO_RAPIDO, PRIORIDADES, COLORES_ESTADO } from "@/lib/constants";
 import AccesoDenegado from "@/components/AccesoDenegado";
 import ModalNuevaIncidencia from "@/components/ModalNuevaIncidencia";
 
@@ -124,7 +124,9 @@ export default async function ListadoIncidenciasPage({
             >
               <div className="mb-1 flex items-start justify-between gap-2">
                 <span className="font-medium">{i.titulo}</span>
-                <span className="shrink-0 rounded-full bg-marca-200 px-2 py-1 text-xs whitespace-nowrap">
+                <span
+                  className={`shrink-0 rounded-full px-2 py-1 text-xs whitespace-nowrap ${COLORES_ESTADO[i.estado] || "bg-marca-200"}`}
+                >
                   {ETIQUETAS_ESTADO[i.estado] || i.estado}
                 </span>
               </div>

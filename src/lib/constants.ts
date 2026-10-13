@@ -66,6 +66,22 @@ export const ETIQUETAS_ESTADO: Record<Estado, string> = {
   CANCELADA: "Cancelada",
 };
 
+// Clases Tailwind (fondo + texto) para colorear la etiqueta de estado de forma
+// distinta según su valor, tanto en el listado como en el detalle de incidencia.
+export const COLORES_ESTADO: Record<Estado, string> = {
+  REGISTRADA: "bg-gray-200 text-gray-800",
+  PENDIENTE_REVISION: "bg-yellow-200 text-yellow-900",
+  ASIGNADA: "bg-blue-200 text-blue-900",
+  EN_CURSO: "bg-orange-200 text-orange-900",
+  PENDIENTE_PROVEEDOR: "bg-purple-200 text-purple-900",
+  PENDIENTE_PRESUPUESTO: "bg-indigo-200 text-indigo-900",
+  RESUELTA: "bg-green-200 text-green-900",
+  CERRADA: "bg-gray-400 text-white",
+  REABIERTA: "bg-red-200 text-red-900",
+  CANCELADA: "bg-slate-300 text-slate-700 line-through",
+};
+
+
 export const TIPO_UBICACION = { BLOQUE: "BLOQUE", ZONA_COMUN: "ZONA_COMUN" } as const;
 export type TipoUbicacion = (typeof TIPO_UBICACION)[keyof typeof TIPO_UBICACION];
 

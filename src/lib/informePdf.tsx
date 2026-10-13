@@ -1,8 +1,14 @@
 import { readFileSync } from "fs";
 import { join } from "path";
-import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
+import { Document, Font, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import { ETIQUETAS_ESTADO, TIPO_UBICACION, type OpcionCatalogo } from "./constants";
 import { formatearMoneda, type ResumenInformes } from "./informes";
+
+// Desactiva el motor de guionizado: por defecto intenta cargar un diccionario
+// de idioma (@react-pdf/hyphenate) vía un require dinámico que falla en el
+// runtime serverless de Vercel ("Package subpath './en-us' is not defined by
+// exports"), provocando un error 500 al generar el PDF.
+Font.registerHyphenationCallback((palabra) => [palabra]);
 
 const logoBuffer = readFileSync(join(process.cwd(), "public", "logo.png"));
 

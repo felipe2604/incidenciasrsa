@@ -247,15 +247,13 @@ export default function FormularioIncidencia({ catalogos, onExito, onCambio, idI
           {errores.prioridad && <p className="text-sm text-marca-700">{errores.prioridad}</p>}
         </div>
       </div>
-      {!modoEdicion && (
-        <div>
-          <label className="block text-sm font-medium" htmlFor="imagenes">
-            Fotos (opcional)
-          </label>
-          <input type="file" id="imagenes" name="imagenes" accept=".jpg,.jpeg,.png,.webp" multiple className="mt-1 w-full" />
-          <small className="text-gray-500">Puede seleccionar varias. Se reducen de tamaño automáticamente al guardar.</small>
-        </div>
-      )}
+      <div>
+        <label className="block text-sm font-medium" htmlFor="imagenes">
+          {modoEdicion ? "Añadir fotos o archivos (opcional)" : "Fotos (opcional)"}
+        </label>
+        <input type="file" id="imagenes" name="imagenes" accept=".jpg,.jpeg,.png,.webp,.pdf" multiple className="mt-1 w-full" />
+        <small className="text-gray-500">Puede seleccionar varios. Las fotos se reducen de tamaño automáticamente al guardar.</small>
+      </div>
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" name="confidencial" defaultChecked={valoresIniciales?.confidencial} /> Marcar como información
         confidencial
