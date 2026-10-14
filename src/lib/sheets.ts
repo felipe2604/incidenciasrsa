@@ -62,10 +62,21 @@ export async function leerFilasComoObjetos(
   return { encabezados, filas };
 }
 
-export async function obtenerEncabezados(nombreHoja: string): Promise<string[]> {
+export async function obtenerEncabezados(nombreHoja: string, camposRequeridos: string[] = []): Promise<string[]> {
   const sheets = await obtenerApiSheets();
   const resp = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: `${nombreHoja}!1:1` });
-  return (resp.data.values && (resp.data.values[0] as string[])) || [];
+  const encabezados = (resp.data.values && (resp.data.values[0] as string[])) || [];
+  const faltantes = camposRequeridos.filter((campo) => !encabezados.includes(campo));
+  if (faltantes.length > 0) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${nombreHoja}!${columnaAIndiceLetra(encabezados.length)}1`,
+      valueInputOption: "RAW",
+      requestBody: { values: [faltantes] },
+    });
+    encabezados.push(...faltantes);
+  }
+  return encabezados;
 }
 
 // Añade una fila nueva ordenando los valores según las cabeceras reales de la hoja.

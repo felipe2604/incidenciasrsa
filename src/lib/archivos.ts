@@ -1,5 +1,6 @@
 import { HOJAS, LIMITES } from "./constants";
-import { agregarFila, leerFilasComoObjetos, obtenerEncabezados } from "./sheets";
+import { list } from "@vercel/blob";
+import { actualizarCelda, agregarFila, leerFilasComoObjetos, obtenerEncabezados } from "./sheets";
 import { ErrorAplicacion, verificarPermiso } from "./permissions";
 import { registrarAuditoria } from "./auditoria";
 import { obtenerIncidenciaDetalle } from "./incidencias";
@@ -23,7 +24,7 @@ export async function registrarArchivo(actor: Usuario, datos: DatosArchivoNuevo)
     throw new ErrorAplicacion("DATOS_INVALIDOS", "El archivo supera el tamaño máximo permitido (10 MB).");
   }
   const idArchivo = `ARC-${Date.now()}`;
-  const encabezados = await obtenerEncabezados(HOJAS.ARCHIVOS);
+  const encabezados = await obtenerEncabezados(HOJAS.ARCHIVOS, ["url_blob"]);
   await agregarFila(HOJAS.ARCHIVOS, encabezados, {
     id_archivo: idArchivo,
     id_incidencia: datos.idIncidencia,
@@ -59,5 +60,24 @@ export async function obtenerArchivoPorId(actor: Usuario, idArchivo: string) {
   }
   const archivo = encontrado.objeto;
   await obtenerIncidenciaDetalle(actor, archivo.id_incidencia);
+  if (!archivo.url_blob) {
+    const coincidencias: string[] = [];
+    let cursor: string | undefined;
+    do {
+      const resultado = await list({ prefix: `incidencias/${archivo.id_incidencia}/`, cursor });
+      for (const blob of resultado.blobs) {
+        if (blob.pathname.endsWith(`-${archivo.nombre_original}`) && blob.size === Number(archivo.tamano_bytes)) {
+          coincidencias.push(blob.url);
+        }
+      }
+      cursor = resultado.hasMore ? resultado.cursor : undefined;
+    } while (cursor);
+    if (coincidencias.length !== 1) {
+      throw new ErrorAplicacion("NO_ENCONTRADO", "No se puede recuperar este adjunto. Vuelva a adjuntarlo a la incidencia.");
+    }
+    const encabezados = await obtenerEncabezados(HOJAS.ARCHIVOS, ["url_blob"]);
+    archivo.url_blob = coincidencias[0];
+    await actualizarCelda(HOJAS.ARCHIVOS, encontrado.numeroFila, encabezados, { url_blob: archivo.url_blob });
+  }
   return archivo;
 }
