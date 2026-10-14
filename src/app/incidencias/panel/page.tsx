@@ -2,7 +2,7 @@ import Link from "next/link";
 import { obtenerUsuarioActual } from "@/lib/sesion";
 import { obtenerDatosPanel } from "@/lib/panel";
 import { obtenerCatalogos } from "@/lib/catalogos";
-import { ETIQUETAS_ESTADO, ETIQUETAS_FILTRO_RAPIDO, type OpcionCatalogo } from "@/lib/constants";
+import { COLORES_ESTADO, ETIQUETAS_ESTADO, ETIQUETAS_FILTRO_RAPIDO, type OpcionCatalogo } from "@/lib/constants";
 import AccesoDenegado from "@/components/AccesoDenegado";
 import PanelGraficos from "@/components/PanelGraficos";
 
@@ -66,7 +66,9 @@ export default async function PanelPage() {
                 <Link href={`/incidencias/${r.idIncidencia}`} className="block rounded-md p-2 hover:bg-marca-100/30">
                   <div className="flex items-center justify-between">
                     <span className="font-medium">{r.titulo}</span>
-                    <span className="rounded-full bg-marca-200 px-2 py-1 text-xs">{ETIQUETAS_ESTADO[r.estado] || r.estado}</span>
+                    <span className={`rounded-full px-2 py-1 text-xs ${COLORES_ESTADO[r.estado] || "bg-marca-200"}`}>
+                      {ETIQUETAS_ESTADO[r.estado] || r.estado}
+                    </span>
                   </div>
                 </Link>
               </li>

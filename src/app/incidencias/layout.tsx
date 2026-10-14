@@ -24,10 +24,13 @@ export default async function IncidenciasLayout({ children }: { children: React.
               alt="Residencial Santa Aurelia"
               width={56}
               height={56}
-              className="h-12 w-12 shrink-0 rounded-md object-contain sm:h-14 sm:w-14"
+              className="h-12 w-12 shrink-0 rounded-md border border-marca-200 bg-white object-contain p-1 shadow-sm sm:h-14 sm:w-14"
               priority
             />
-            <span className="text-lg font-bold text-marca-700 sm:text-xl">Incidencias RSA</span>
+            <div className="flex flex-col leading-tight">
+              <span className="text-lg font-bold tracking-tight text-marca-700 sm:text-xl">Incidencias RSA</span>
+              <span className="text-xs font-medium text-gray-500">Residencial Santa Aurelia</span>
+            </div>
           </Link>
           <div className="flex items-center gap-3 text-sm">
             <span className="hidden sm:inline">{session.user?.nombre || session.user?.email}</span>
