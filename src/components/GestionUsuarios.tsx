@@ -11,9 +11,10 @@ interface DatosFormulario {
   ambitoBloques: string;
   ambitoZonas: string;
   activo: boolean;
+  password: string;
 }
 
-const VACIO: DatosFormulario = { email: "", nombre: "", rol: ROLES.VOCAL, ambitoBloques: "", ambitoZonas: "", activo: true };
+const VACIO: DatosFormulario = { email: "", nombre: "", rol: ROLES.VOCAL, ambitoBloques: "", ambitoZonas: "", activo: true, password: "" };
 
 export default function GestionUsuarios({ usuarios }: { usuarios: Usuario[] }) {
   const router = useRouter();
@@ -40,6 +41,7 @@ export default function GestionUsuarios({ usuarios }: { usuarios: Usuario[] }) {
       ambitoBloques: u.ambito_bloques,
       ambitoZonas: u.ambito_zonas,
       activo: u.activo,
+      password: "",
     });
     setEditandoEmail(u.email);
     setErrores({});
@@ -56,7 +58,7 @@ export default function GestionUsuarios({ usuarios }: { usuarios: Usuario[] }) {
       const resp = await fetch("/api/usuarios", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(datos),
+        body: JSON.stringify({ ...datos, password: datos.rol === ROLES.ADMINISTRADOR_FINCAS ? datos.password : undefined }),
       });
       const json = await resp.json();
       if (!json.ok) {
@@ -66,6 +68,7 @@ export default function GestionUsuarios({ usuarios }: { usuarios: Usuario[] }) {
         return;
       }
       setAbierto(false);
+      setDatos(VACIO);
       router.refresh();
     } catch {
       setMensaje("No se pudo guardar el usuario. Compruebe su conexión.");
@@ -103,7 +106,7 @@ export default function GestionUsuarios({ usuarios }: { usuarios: Usuario[] }) {
               <tr key={u.id_usuario} className="border-b border-marca-50">
                 <td className="whitespace-nowrap px-3 py-2">{u.nombre}</td>
                 <td className="whitespace-nowrap px-3 py-2">{u.email}</td>
-                <td className="whitespace-nowrap px-3 py-2">{u.rol}</td>
+                <td className="whitespace-nowrap px-3 py-2">{u.rol === ROLES.ADMINISTRADOR_FINCAS ? "Administrador de fincas" : u.rol}</td>
                 <td className="whitespace-nowrap px-3 py-2">{u.ambito_bloques || "—"}</td>
                 <td className="whitespace-nowrap px-3 py-2">{u.ambito_zonas || "—"}</td>
                 <td className="whitespace-nowrap px-3 py-2">{u.activo ? "Sí" : "No"}</td>
@@ -174,17 +177,36 @@ export default function GestionUsuarios({ usuarios }: { usuarios: Usuario[] }) {
                 <select
                   id="rol"
                   value={datos.rol}
-                  onChange={(e) => setDatos({ ...datos, rol: e.target.value })}
+                  onChange={(e) => setDatos({ ...datos, rol: e.target.value, password: "" })}
                   className="mt-1 w-full rounded-md border p-2"
                 >
                   {Object.values(ROLES).map((r) => (
                     <option key={r} value={r}>
-                      {r}
+                      {r === ROLES.ADMINISTRADOR_FINCAS ? "Administrador de fincas" : r}
                     </option>
                   ))}
                 </select>
                 {errores.rol && <p className="text-sm text-marca-700">{errores.rol}</p>}
               </div>
+              {datos.rol === ROLES.ADMINISTRADOR_FINCAS && (
+                <div>
+                  <label className="block text-sm font-medium" htmlFor="passwordUsuario">
+                    {editandoEmail ? "Nueva contraseña (opcional)" : "Contraseña"}
+                  </label>
+                  <input
+                    id="passwordUsuario"
+                    type="password"
+                    autoComplete="new-password"
+                    minLength={12}
+                    maxLength={128}
+                    required={!editandoEmail}
+                    value={datos.password}
+                    onChange={(e) => setDatos({ ...datos, password: e.target.value })}
+                    className="mt-1 w-full rounded-md border p-2"
+                  />
+                  {errores.password && <p className="text-sm text-marca-700">{errores.password}</p>}
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium" htmlFor="ambitoBloques">

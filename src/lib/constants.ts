@@ -19,6 +19,7 @@ export const ROLES = {
   PRESIDENTE: "PRESIDENTE",
   VOCAL: "VOCAL",
   COORDINADOR: "COORDINADOR",
+  ADMINISTRADOR_FINCAS: "ADMINISTRADOR_FINCAS",
 } as const;
 
 export type Rol = (typeof ROLES)[keyof typeof ROLES];

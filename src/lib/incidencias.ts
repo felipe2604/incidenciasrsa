@@ -1,6 +1,6 @@
 import { ESTADOS, ESTADOS_PENDIENTES, ESTADOS_SIN_TRABAJO_PENDIENTE, HOJAS, LIMITES, ROLES, TIPO_UBICACION, TRANSICIONES_ESTADO, type Estado } from "./constants";
 import { actualizarCelda, agregarFila, generarSiguienteId, leerFilasComoObjetos, obtenerEncabezados } from "./sheets";
-import { ErrorAplicacion, incidenciaEnAmbito, listaAmbito, tienePermiso, usuarioTieneAmbitoTotal, verificarPermiso } from "./permissions";
+import { ErrorAplicacion, incidenciaEnAmbito, listaAmbito, puedeCambiarEstado, tienePermiso, usuarioTieneAmbitoTotal, verificarPermiso } from "./permissions";
 import { sanearTextoEntrada, validarComentario, validarIncidencia, type DatosIncidenciaEntrada } from "./validaciones";
 import { registrarAuditoria } from "./auditoria";
 import type { Incidencia, IncidenciaProyectada, Usuario } from "./types";
@@ -222,10 +222,12 @@ export async function actualizarIncidencia(actor: Usuario, idIncidencia: string,
 }
 
 export async function cambiarEstadoIncidencia(actor: Usuario, idIncidencia: string, nuevoEstado: string): Promise<void> {
-  verificarPermiso(actor, "INCIDENCIAS_CAMBIAR_ESTADO");
   const { objeto, numeroFila, encabezados } = await buscarFilaIncidencia(idIncidencia);
   const inc = objeto as Incidencia;
   if (!incidenciaEnAmbito(actor, inc)) throw new ErrorAplicacion("PERMISO_DENEGADO", "No tiene acceso a esta incidencia.");
+  if (!puedeCambiarEstado(actor, inc.usuario_creador)) {
+    throw new ErrorAplicacion("PERMISO_DENEGADO", "No tiene permisos para cambiar el estado de esta incidencia.");
+  }
   const permitidas = TRANSICIONES_ESTADO[inc.estado as Estado] || [];
   if (!permitidas.includes(nuevoEstado as Estado)) {
     throw new ErrorAplicacion("ESTADO_INVALIDO", "Esa transición de estado no está permitida.");

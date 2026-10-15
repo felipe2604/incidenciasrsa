@@ -3,6 +3,7 @@ import { actualizarCelda, agregarFila, generarSiguienteId, leerFilasComoObjetos,
 import { ErrorAplicacion, verificarPermiso } from "./permissions";
 import { sanearTextoEntrada } from "./validaciones";
 import { registrarAuditoria } from "./auditoria";
+import { comprobarPassword, crearHashPassword } from "./password";
 import type { Usuario } from "./types";
 
 function normalizarUsuario(o: FilaCruda, numeroFila: number): Usuario {
@@ -31,6 +32,44 @@ export async function buscarUsuarioPorEmail(email: string): Promise<Usuario | nu
   return null;
 }
 
+const accesosEnCurso = new Set<string>();
+
+export async function autenticarConPassword(email: string, password: string): Promise<Usuario | null> {
+  const normalizado = email.toLowerCase().trim();
+  if (accesosEnCurso.has(normalizado)) return null;
+  accesosEnCurso.add(normalizado);
+  try {
+    return await comprobarCredenciales(normalizado, password);
+  } finally {
+    accesosEnCurso.delete(normalizado);
+  }
+}
+
+async function comprobarCredenciales(email: string, password: string): Promise<Usuario | null> {
+  if (!email || email.length > 200 || !password || password.length > 128) return null;
+  const datos = await leerFilasComoObjetos(HOJAS.USUARIOS);
+  const fila = datos.filas.find((f) => String(f.objeto.email || "").toLowerCase().trim() === email.toLowerCase().trim());
+  const usuario = fila ? normalizarUsuario(fila.objeto, fila.numeroFila) : null;
+  if (!fila || !usuario?.activo || usuario.rol !== ROLES.ADMINISTRADOR_FINCAS) {
+    await comprobarPassword(password, undefined);
+    return null;
+  }
+  const bloqueadoHasta = Date.parse(String(fila.objeto.auth_bloqueado_hasta || ""));
+  if (bloqueadoHasta > Date.now()) return null;
+  const encabezados = await obtenerEncabezados(HOJAS.USUARIOS, ["auth_intentos", "auth_bloqueado_hasta"]);
+  const intentos = Number.isFinite(bloqueadoHasta) ? 0 : Math.max(0, Number(fila.objeto.auth_intentos) || 0);
+  if (!(await comprobarPassword(password, fila.objeto.password_hash))) {
+    const nuevosIntentos = intentos + 1;
+    await actualizarCelda(HOJAS.USUARIOS, fila.numeroFila, encabezados, {
+      auth_intentos: nuevosIntentos,
+      auth_bloqueado_hasta: nuevosIntentos >= 5 ? new Date(Date.now() + 15 * 60 * 1000).toISOString() : "",
+    });
+    return null;
+  }
+  await actualizarCelda(HOJAS.USUARIOS, fila.numeroFila, encabezados, { auth_intentos: 0, auth_bloqueado_hasta: "" });
+  return usuario;
+}
+
 // Equivalente a listarUsuariosCliente de Usuarios.gs: solo quien gestiona
 // usuarios (ADMIN) puede ver la lista completa de altas.
 export async function listarUsuarios(actor: Usuario): Promise<Usuario[]> {
@@ -48,6 +87,7 @@ export interface DatosUsuarioEntrada {
   ambitoBloques?: string;
   ambitoZonas?: string;
   activo?: boolean;
+  password?: string;
 }
 
 // Equivalente a guardarUsuarioCliente: crea o actualiza según exista ya el
@@ -66,12 +106,31 @@ export async function guardarUsuario(actor: Usuario, datos: DatosUsuarioEntrada)
     throw new ErrorAplicacion("DATOS_INVALIDOS", "Revise los campos indicados.", { rol: "Rol no válido." });
   }
 
-  const encabezados = await obtenerEncabezados(HOJAS.USUARIOS);
   const ahora = new Date().toISOString();
   const existente = await buscarUsuarioPorEmail(email);
+  let credenciales: FilaCruda = {};
+  if (datos.password) {
+    if (datos.rol !== ROLES.ADMINISTRADOR_FINCAS || datos.password.length < 12 || datos.password.length > 128) {
+      throw new ErrorAplicacion("DATOS_INVALIDOS", "Revise la contraseña.", {
+        password: "La contraseña del administrador de fincas debe tener entre 12 y 128 caracteres.",
+      });
+    }
+    credenciales = { password_hash: await crearHashPassword(datos.password), auth_intentos: 0, auth_bloqueado_hasta: "" };
+  }
+  if (datos.rol === ROLES.ADMINISTRADOR_FINCAS && !datos.password) {
+    const filas = await leerFilasComoObjetos(HOJAS.USUARIOS);
+    const hashExistente = filas.filas.find((f) => f.objeto.id_usuario === existente?.id_usuario)?.objeto.password_hash;
+    if (!hashExistente) {
+      throw new ErrorAplicacion("DATOS_INVALIDOS", "Establezca una contraseña para este usuario.", {
+        password: "Introduzca una contraseña de al menos 12 caracteres.",
+      });
+    }
+  }
+  const encabezados = await obtenerEncabezados(HOJAS.USUARIOS, Object.keys(credenciales));
 
   if (existente) {
     await actualizarCelda(HOJAS.USUARIOS, existente._fila, encabezados, {
+      ...credenciales,
       nombre,
       rol: datos.rol,
       ambito_bloques: sanearTextoEntrada(datos.ambitoBloques, 500),
@@ -86,6 +145,7 @@ export async function guardarUsuario(actor: Usuario, datos: DatosUsuarioEntrada)
 
   const idNuevo = await generarSiguienteId("U");
   await agregarFila(HOJAS.USUARIOS, encabezados, {
+    ...credenciales,
     id_usuario: idNuevo,
     email,
     nombre,

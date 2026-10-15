@@ -3,11 +3,20 @@
  * Se comprueba SIEMPRE en el servidor (API routes / server actions); el
  * cliente solo oculta botones por comodidad, nunca es la barrera real.
  */
-import { ROLES, TIPO_UBICACION } from "./constants";
+import { TIPO_UBICACION } from "./constants";
 import type { Incidencia, Usuario } from "./types";
 
 export const PERMISOS_POR_ROL: Record<string, string[]> = {
   ADMIN: ["*"],
+  ADMINISTRADOR_FINCAS: [
+    "INCIDENCIAS_VER_TODAS",
+    "INCIDENCIAS_CREAR",
+    "INCIDENCIAS_EDITAR_PROPIO_AMBITO",
+    "INCIDENCIAS_CAMBIAR_ESTADO_PROPIAS",
+    "COMENTARIOS_CREAR",
+    "ARCHIVOS_SUBIR",
+    "INFORMES_VER",
+  ],
   PRESIDENTE: [
     "INCIDENCIAS_VER_TODAS",
     "INCIDENCIAS_CREAR",
@@ -61,6 +70,11 @@ export function verificarPermiso(usuario: Usuario, permiso: string): void {
   }
 }
 
+export function puedeCambiarEstado(usuario: Usuario, usuarioCreador: string): boolean {
+  return tienePermiso(usuario, "INCIDENCIAS_CAMBIAR_ESTADO") ||
+    (tienePermiso(usuario, "INCIDENCIAS_CAMBIAR_ESTADO_PROPIAS") && usuario.id_usuario === usuarioCreador);
+}
+
 export function listaAmbito(valor: string | undefined | null): string[] {
   if (!valor) return [];
   return String(valor)
@@ -77,7 +91,7 @@ export function usuarioTieneAmbitoTotal(usuario: Usuario, tipo: "BLOQUE" | "ZONA
 // Verificación de ámbito por incidencia: se repite en cada lectura/escritura,
 // nunca se confía en que el cliente ya filtró correctamente.
 export function incidenciaEnAmbito(usuario: Usuario, incidencia: Incidencia): boolean {
-  if (usuario.rol === ROLES.ADMIN || usuario.rol === ROLES.PRESIDENTE) return true;
+  if (tienePermiso(usuario, "INCIDENCIAS_VER_TODAS")) return true;
   if (incidencia.tipo_ubicacion === TIPO_UBICACION.BLOQUE) {
     if (usuarioTieneAmbitoTotal(usuario, "BLOQUE")) return true;
     return listaAmbito(usuario.ambito_bloques).includes(incidencia.bloque);

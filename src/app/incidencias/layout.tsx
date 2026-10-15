@@ -12,7 +12,7 @@ export default async function IncidenciasLayout({ children }: { children: React.
   // revalida el permiso real contra la hoja de Usuarios en el servidor.
   const rol = session.user?.rol;
   const esAdmin = rol === "ADMIN";
-  const puedeVerInformes = esAdmin || rol === "PRESIDENTE";
+  const puedeVerInformes = esAdmin || rol === "PRESIDENTE" || rol === "ADMINISTRADOR_FINCAS";
 
   return (
     <div className="mx-auto max-w-6xl p-3 sm:p-6">

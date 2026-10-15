@@ -1,9 +1,22 @@
 import GoogleProvider from "next-auth/providers/google";
+import CredentialsProvider from "next-auth/providers/credentials";
 import type { NextAuthOptions } from "next-auth";
-import { buscarUsuarioPorEmail } from "./lib/usuarios";
+import { autenticarConPassword, buscarUsuarioPorEmail } from "./lib/usuarios";
 
 export const authOptions: NextAuthOptions = {
   providers: [
+    CredentialsProvider({
+      name: "Correo y contraseña",
+      credentials: {
+        email: { label: "Correo electrónico", type: "email" },
+        password: { label: "Contraseña", type: "password" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials.password) return null;
+        const usuario = await autenticarConPassword(credentials.email, credentials.password);
+        return usuario ? { id: usuario.id_usuario, email: usuario.email, name: usuario.nombre } : null;
+      },
+    }),
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,

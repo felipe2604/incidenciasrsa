@@ -1,7 +1,7 @@
 import { obtenerUsuarioActual } from "@/lib/sesion";
 import { listarComentarios, obtenerIncidenciaDetalle } from "@/lib/incidencias";
 import { listarArchivosPorIncidencia } from "@/lib/archivos";
-import { tienePermiso } from "@/lib/permissions";
+import { puedeCambiarEstado, tienePermiso } from "@/lib/permissions";
 import { obtenerCatalogos } from "@/lib/catalogos";
 import { TRANSICIONES_ESTADO, ETIQUETAS_ESTADO, COLORES_ESTADO, type Estado } from "@/lib/constants";
 import AccesoDenegado from "@/components/AccesoDenegado";
@@ -38,7 +38,7 @@ export default async function DetalleIncidenciaPage({ params }: { params: Promis
     tipoMime: a.tipo_mime as string,
   }));
 
-  const puedeCambiarEstado = tienePermiso(actor, "INCIDENCIAS_CAMBIAR_ESTADO");
+  const puedeCambiarEstadoActual = puedeCambiarEstado(actor, incidencia.usuarioCreador);
   const transicionesPosibles = TRANSICIONES_ESTADO[incidencia.estado as Estado] || [];
   const puedeEditar =
     tienePermiso(actor, "INCIDENCIAS_EDITAR") ||
@@ -81,7 +81,7 @@ export default async function DetalleIncidenciaPage({ params }: { params: Promis
         <p className="mt-3 whitespace-pre-wrap text-gray-700">{incidencia.descripcion}</p>
       </div>
 
-      {puedeCambiarEstado && transicionesPosibles.length > 0 && (
+      {puedeCambiarEstadoActual && transicionesPosibles.length > 0 && (
         <div className="rounded-md border border-marca-200 bg-white p-4 shadow-sm">
           <CambiarEstadoIncidencia idIncidencia={incidencia.idIncidencia} transicionesPosibles={transicionesPosibles} />
         </div>

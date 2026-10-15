@@ -29,7 +29,7 @@ Repositorio: https://github.com/felipe2604/incidenciasrsa
 | --- | --- | --- |
 | Framework | **Next.js 15** (App Router) + **TypeScript** | Despliegue nativo en Vercel, API routes y páginas en el mismo proyecto, tipado fuerte para una app con reglas de permisos complejas. |
 | Estilos | **Tailwind CSS 3** | Rapidez de maquetación, paleta de color (`marca-*`) ajustada a la identidad visual de la app original. |
-| Autenticación | **NextAuth.js** con `GoogleProvider`, sesión JWT | El usuario solo concede permisos básicos (nombre, email); el acceso real a la hoja de cálculo lo gestiona el backend con una cuenta de servicio, no el usuario. |
+| Autenticación | **NextAuth.js** con Google y credenciales para administradores de fincas, sesión JWT | El acceso a Sheets lo gestiona una cuenta de servicio; las contraseñas se guardan como hashes scrypt, nunca como texto. |
 | Base de datos | La misma **Google Sheet** ya usada por la app original, vía API de Sheets autenticada con **cuenta de servicio** | No hay que migrar datos a una base de datos nueva; el comité ya conoce y sabe editar esa hoja si hace falta. |
 | Archivos adjuntos | **Vercel Blob** | Sustituye a Google Drive; las fotos se comprimen en el navegador antes de subirlas y solo se sirven a través de una ruta propia que revalida permisos en cada descarga. |
 | Validación | `zod` (forma/tipos en el borde de la API) + funciones de saneado propias (límites de negocio exactos) | Defensa en profundidad: cualquier payload manipulado a mano que no respete la forma esperada se rechaza antes de tocar la lógica de negocio. |
@@ -83,6 +83,35 @@ Otros puntos relevantes:
 - Tareas programadas (recordatorios, cierres automáticos).
 
 ## Puesta en marcha en local
+
+### Perfiles
+
+| Perfil | Visibilidad | Operaciones |
+| --- | --- | --- |
+| ADMIN | Todo | Gestión completa, incluidos usuarios y catálogos. |
+| PRESIDENTE | Todas las incidencias, contenido confidencial e informes | Crear y editar cualquier incidencia, cambiar estados, comentar y adjuntar. Sin gestión de usuarios ni catálogos. |
+| VOCAL | Bloques y zonas asignados; descripción confidencial solo si es propia | Crear, editar las propias, comentar y adjuntar. Sin cambios de estado ni informes. |
+| COORDINADOR | Igual que VOCAL | Igual que VOCAL. |
+| ADMINISTRADOR_FINCAS | Todas las incidencias e informes; descripción confidencial solo si es propia | Crear, editar y cambiar estado solo de las propias; comentar y adjuntar también en las ajenas. Sin gestión de usuarios ni catálogos. |
+
+### Acceso Sin Google
+
+El perfil `ADMINISTRADOR_FINCAS` puede entrar mediante correo y contraseña. Un
+ADMIN establece o cambia la contraseña desde Administración → Usuarios (entre
+12 y 128 caracteres); dejarla vacía al editar conserva la existente. El usuario
+no puede entrar con contraseña hasta que esta se haya establecido. Para recuperar
+el acceso, debe solicitar al ADMIN una nueva contraseña.
+
+La hoja Usuarios incorpora automáticamente `password_hash`, `auth_intentos` y
+`auth_bloqueado_hasta`. Tras cinco fallos consecutivos, la cuenta se bloquea durante
+15 minutos. El contador se conserva en Sheets; su concurrencia entre distintas
+instancias tiene las mismas limitaciones no transaccionales que el resto de la
+aplicación. La protección simultánea dentro de cada instancia no sustituye un
+limitador distribuido; para exposición a ataques intensivos, configurar además
+rate limiting en Vercel para `/api/auth/callback/credentials`.
+
+La cuenta de Domingo GS es `administracion@inmoabades.es` (sin tilde), con el perfil
+`ADMINISTRADOR_FINCAS`. No necesita una cuenta Google para este acceso.
 
 Requisitos: **Node.js 20 o superior** y una copia de la hoja de cálculo (ver siguiente
 sección).

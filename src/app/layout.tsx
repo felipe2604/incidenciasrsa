@@ -5,6 +5,7 @@ import Providers from "./providers";
 export const metadata: Metadata = {
   title: "Incidencias RSA",
   description: "Gestión de incidencias — Residencial Santa Aurelia",
+  icons: { icon: { url: "/ico.png", type: "image/png" }, apple: "/ico.png" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

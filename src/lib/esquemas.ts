@@ -48,10 +48,11 @@ export const esquemaArchivoNuevo = z.object({
 export const esquemaUsuario = z.object({
   email: z.string().email().max(200),
   nombre: z.string().min(1).max(150),
-  rol: z.enum([ROLES.ADMIN, ROLES.PRESIDENTE, ROLES.VOCAL, ROLES.COORDINADOR]),
+  rol: z.enum([ROLES.ADMIN, ROLES.PRESIDENTE, ROLES.VOCAL, ROLES.COORDINADOR, ROLES.ADMINISTRADOR_FINCAS]),
   ambitoBloques: z.string().max(500).nullish().transform((v) => v ?? undefined),
   ambitoZonas: z.string().max(500).nullish().transform((v) => v ?? undefined),
   activo: z.boolean().optional(),
+  password: z.string().max(128).optional(),
 });
 
 const CLAVES_CATALOGO = ["BLOQUE", "PLANTA", "ZONA", "CATEGORIA"] as const;
