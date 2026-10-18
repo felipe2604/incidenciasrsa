@@ -8,6 +8,10 @@ export interface Usuario {
   ambito_bloques: string;
   ambito_zonas: string;
   activo: boolean;
+  acceso_password?: boolean;
+  cambio_password_obligatorio?: boolean;
+  version_sesion?: string;
+  password_expira?: string;
   _fila: number;
 }
 
@@ -28,6 +32,7 @@ export interface Incidencia {
   responsable: string;
   fecha_prevista_actuacion: string;
   fecha_resolucion: string;
+  fecha_estado_final?: string;
   descripcion_solucion: string;
   coste_estimado: string | number;
   coste_real: string | number;

@@ -5,6 +5,15 @@ import { sanearTextoEntrada, validarComentario, validarIncidencia, type DatosInc
 import { registrarAuditoria } from "./auditoria";
 import type { Incidencia, IncidenciaProyectada, Usuario } from "./types";
 
+export function estaArchivada(inc: Incidencia, ahora = Date.now()): boolean {
+  if (inc.archivada === true || inc.archivada === "TRUE") return true;
+  if (inc.estado !== ESTADOS.RESUELTA && inc.estado !== ESTADOS.CERRADA) return false;
+  const fecha = inc.fecha_estado_final || (inc.estado === ESTADOS.RESUELTA ?
+    inc.fecha_resolucion || inc.fecha_ultima_modificacion : inc.fecha_ultima_modificacion || inc.fecha_resolucion);
+  const instante = Date.parse(fecha || "");
+  return Number.isFinite(instante) && ahora - instante >= 15 * 24 * 60 * 60 * 1000;
+}
+
 export function proyectarIncidencia(inc: Incidencia, actor: Usuario): IncidenciaProyectada {
   const esConfidencial = inc.confidencial === true || inc.confidencial === "TRUE";
   const puedeVerConfidencial =
@@ -30,7 +39,7 @@ export function proyectarIncidencia(inc: Incidencia, actor: Usuario): Incidencia
     costeReal: inc.coste_real,
     proveedor: inc.proveedor,
     confidencial: !!esConfidencial,
-    archivada: inc.archivada === true || inc.archivada === "TRUE",
+    archivada: estaArchivada(inc),
     fechaUltimaModificacion: inc.fecha_ultima_modificacion,
   };
 }
@@ -41,10 +50,44 @@ export interface FiltrosIncidencias {
   estado?: string;
   prioridad?: string;
   categoria?: string;
+  bloque?: string;
+  zona?: string;
+  fechaDesde?: string;
+  fechaHasta?: string;
+  campoFecha?: string;
   // Mismos codigos que las tarjetas del panel (ABIERTAS, URGENTES, PENDIENTES,
   // VENCIDAS, ASIGNADAS_A_MI, FINALIZADAS), para que el listado muestre
   // exactamente el conjunto que dio lugar al contador pulsado.
   filtroRapido?: string;
+}
+
+export function leerFiltrosIncidencias(parametros: URLSearchParams): FiltrosIncidencias {
+  return Object.fromEntries(["texto", "estado", "prioridad", "categoria", "bloque", "zona", "fechaDesde", "fechaHasta", "campoFecha", "filtroRapido"]
+    .map((clave) => [clave, parametros.get(clave) || undefined]));
+}
+
+function validarFiltros(filtros: FiltrosIncidencias): void {
+  for (const fecha of [filtros.fechaDesde, filtros.fechaHasta]) {
+    if (fecha && (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !Number.isFinite(Date.parse(fecha)) || new Date(fecha).toISOString().slice(0, 10) !== fecha)) {
+      throw new ErrorAplicacion("DATOS_INVALIDOS", "El rango de fechas no es válido.");
+    }
+  }
+  if (filtros.fechaDesde && filtros.fechaHasta && filtros.fechaDesde > filtros.fechaHasta) {
+    throw new ErrorAplicacion("DATOS_INVALIDOS", "La fecha inicial debe ser anterior o igual a la final.");
+  }
+  if (filtros.campoFecha && !["creacion", "actividad", "resolucion"].includes(filtros.campoFecha)) {
+    throw new ErrorAplicacion("DATOS_INVALIDOS", "El tipo de fecha no es válido.");
+  }
+}
+
+function cumpleFechas(inc: Incidencia, filtros: FiltrosIncidencias): boolean {
+  if (!filtros.fechaDesde && !filtros.fechaHasta) return true;
+  const fechas = filtros.campoFecha === "actividad" ? [inc.fecha_creacion, inc.fecha_ultima_modificacion, inc.fecha_resolucion, inc.fecha_estado_final] :
+    filtros.campoFecha === "resolucion" ? [inc.fecha_resolucion] : [inc.fecha_creacion];
+  return fechas.some((valor) => {
+    const fecha = String(valor || "").slice(0, 10);
+    return !!fecha && (!filtros.fechaDesde || fecha >= filtros.fechaDesde) && (!filtros.fechaHasta || fecha <= filtros.fechaHasta);
+  });
 }
 
 function cumpleFiltroRapido(inc: Incidencia, actor: Usuario, filtroRapido: string): boolean {
@@ -70,19 +113,25 @@ function cumpleFiltroRapido(inc: Incidencia, actor: Usuario, filtroRapido: strin
 }
 
 export async function listarIncidencias(actor: Usuario, filtros: FiltrosIncidencias = {}): Promise<IncidenciaProyectada[]> {
+  validarFiltros(filtros);
   const datos = await leerFilasComoObjetos(HOJAS.INCIDENCIAS);
   return datos.filas
     .map((f) => f.objeto as Incidencia)
     .filter((inc) => incidenciaEnAmbito(actor, inc))
-    .filter((inc) => !(inc.archivada === true || inc.archivada === "TRUE") || filtros.incluirArchivadas === true)
-    .filter((inc) => (filtros.estado ? inc.estado === filtros.estado : true))
+    .filter((inc) => !estaArchivada(inc) || filtros.incluirArchivadas === true)
+    .filter((inc) => filtros.estado === "ARCHIVADAS" ? estaArchivada(inc) : filtros.estado ? inc.estado === filtros.estado : true)
     .filter((inc) => (filtros.prioridad ? inc.prioridad === filtros.prioridad : true))
     .filter((inc) => (filtros.categoria ? inc.categoria === filtros.categoria : true))
+    .filter((inc) => (!filtros.bloque && !filtros.zona) ||
+      (filtros.bloque && inc.tipo_ubicacion === TIPO_UBICACION.BLOQUE && inc.bloque === filtros.bloque) ||
+      (filtros.zona && inc.tipo_ubicacion === TIPO_UBICACION.ZONA_COMUN && inc.zona_comun === filtros.zona))
+    .filter((inc) => cumpleFechas(inc, filtros))
     .filter((inc) => (filtros.filtroRapido ? cumpleFiltroRapido(inc, actor, filtros.filtroRapido) : true))
     .filter((inc) => {
       if (!filtros.texto) return true;
       const t = filtros.texto.toLowerCase();
-      return String(inc.titulo || "").toLowerCase().includes(t) || String(inc.descripcion || "").toLowerCase().includes(t);
+      const visible = proyectarIncidencia(inc, actor);
+      return String(visible.titulo || "").toLowerCase().includes(t) || String(visible.descripcion || "").toLowerCase().includes(t);
     })
     .sort((a, b) => String(b.fecha_creacion).localeCompare(String(a.fecha_creacion)))
     .map((inc) => proyectarIncidencia(inc, actor));
@@ -222,7 +271,7 @@ export async function actualizarIncidencia(actor: Usuario, idIncidencia: string,
 }
 
 export async function cambiarEstadoIncidencia(actor: Usuario, idIncidencia: string, nuevoEstado: string): Promise<void> {
-  const { objeto, numeroFila, encabezados } = await buscarFilaIncidencia(idIncidencia);
+  const { objeto, numeroFila } = await buscarFilaIncidencia(idIncidencia);
   const inc = objeto as Incidencia;
   if (!incidenciaEnAmbito(actor, inc)) throw new ErrorAplicacion("PERMISO_DENEGADO", "No tiene acceso a esta incidencia.");
   if (!puedeCambiarEstado(actor, inc.usuario_creador)) {
@@ -233,9 +282,12 @@ export async function cambiarEstadoIncidencia(actor: Usuario, idIncidencia: stri
     throw new ErrorAplicacion("ESTADO_INVALIDO", "Esa transición de estado no está permitida.");
   }
   const ahora = new Date().toISOString();
+  const encabezados = await obtenerEncabezados(HOJAS.INCIDENCIAS, ["fecha_estado_final", "archivada"]);
   await actualizarCelda(HOJAS.INCIDENCIAS, numeroFila, encabezados, {
     estado: nuevoEstado,
-    fecha_resolucion: nuevoEstado === ESTADOS.RESUELTA ? ahora : inc.fecha_resolucion,
+    fecha_resolucion: nuevoEstado === ESTADOS.RESUELTA ? ahora : nuevoEstado === ESTADOS.REABIERTA ? "" : inc.fecha_resolucion || "",
+    fecha_estado_final: nuevoEstado === ESTADOS.RESUELTA || nuevoEstado === ESTADOS.CERRADA ? ahora : "",
+    archivada: false,
     fecha_ultima_modificacion: ahora,
     usuario_ultima_modificacion: actor.id_usuario,
   });

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { obtenerUsuarioActual } from "@/lib/sesion";
 import { verificarPermiso } from "@/lib/permissions";
-import { listarIncidencias } from "@/lib/incidencias";
+import { leerFiltrosIncidencias, listarIncidencias } from "@/lib/incidencias";
 import { generarCsvIncidencias } from "@/lib/informes";
 import { manejarErrorApi } from "@/lib/api";
 
@@ -11,10 +11,7 @@ export async function GET(request: NextRequest) {
     verificarPermiso(actor, "INFORMES_VER");
     const { searchParams } = new URL(request.url);
     const lista = await listarIncidencias(actor, {
-      texto: searchParams.get("texto") || undefined,
-      estado: searchParams.get("estado") || undefined,
-      prioridad: searchParams.get("prioridad") || undefined,
-      categoria: searchParams.get("categoria") || undefined,
+      ...leerFiltrosIncidencias(searchParams),
       incluirArchivadas: true,
     });
     const csv = generarCsvIncidencias(lista);

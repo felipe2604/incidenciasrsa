@@ -165,7 +165,7 @@ function DocumentoInforme({
               <Text style={[estilos.celda, estilos.colUbicacion]}>{etiquetaUbicacion(i, etiquetasBloque, etiquetasZona)}</Text>
               <Text style={[estilos.celda, estilos.colCategoria]}>{etiquetasCategoria[i.categoria] || i.categoria}</Text>
               <Text style={[estilos.celda, estilos.colPrioridad]}>{i.prioridad}</Text>
-              <Text style={[estilos.celda, estilos.colEstado]}>{ETIQUETAS_ESTADO[i.estado] || i.estado}</Text>
+              <Text style={[estilos.celda, estilos.colEstado]}>{i.archivada ? "Archivada · " : ""}{ETIQUETAS_ESTADO[i.estado] || i.estado}</Text>
               <Text style={[estilos.celda, estilos.colResponsable]}>{i.responsable || "—"}</Text>
               <Text style={[estilos.celda, estilos.colCoste]}>{formatearMoneda(Number(i.costeReal) || 0)}</Text>
             </View>

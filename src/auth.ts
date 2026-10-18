@@ -22,7 +22,7 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
   ],
-  session: { strategy: "jwt" },
+  session: { strategy: "jwt", maxAge: 8 * 60 * 60 },
   pages: {
     signIn: "/login",
     error: "/login",
@@ -47,6 +47,8 @@ export const authOptions: NextAuthOptions = {
           token.nombre = usuario.nombre;
           token.ambitoBloques = usuario.ambito_bloques;
           token.ambitoZonas = usuario.ambito_zonas;
+          token.versionSesion = usuario.version_sesion || "";
+          token.expiraAcceso = Date.now() + 8 * 60 * 60 * 1000;
         }
       }
       return token;
@@ -58,6 +60,8 @@ export const authOptions: NextAuthOptions = {
         session.user.nombre = token.nombre;
         session.user.ambitoBloques = token.ambitoBloques;
         session.user.ambitoZonas = token.ambitoZonas;
+        session.user.versionSesion = token.versionSesion;
+        session.user.expiraAcceso = token.expiraAcceso;
       }
       return session;
     },

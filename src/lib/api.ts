@@ -8,6 +8,8 @@ export function manejarErrorApi(e: unknown) {
     const status =
       e.codigo === "ACCESO_NO_AUTORIZADO"
         ? 401
+        : e.codigo === "CAMBIO_PASSWORD_OBLIGATORIO"
+          ? 409
         : e.codigo === "PERMISO_DENEGADO"
           ? 403
           : e.codigo === "NO_ENCONTRADO"

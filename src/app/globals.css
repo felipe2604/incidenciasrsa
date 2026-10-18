@@ -10,3 +10,71 @@ body {
   background-color: var(--color-fondo);
   color: #1f1300;
 }
+
+.navegacion-moderna { display: none; }
+
+:root[data-aspecto="moderno"] { --color-fondo: #f1f6f7; }
+[data-aspecto="moderno"] body {
+  color: #20333c;
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  background-image: linear-gradient(140deg, #f8fbfc 0%, #edf4f5 100%);
+}
+[data-aspecto="moderno"] .app-shell {
+  display: grid;
+  grid-template-columns: 216px minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  min-height: 100vh;
+  max-width: none;
+  padding: 0;
+}
+[data-aspecto="moderno"] .navegacion-moderna {
+  display: flex;
+  flex-direction: column;
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  padding: 24px 12px;
+  color: white;
+  background: #13333d;
+  border-right: 1px solid #0b2830;
+}
+.marca-moderna { display: flex; align-items: center; gap: 12px; padding: 0 12px 30px; }
+.enlaces-modernos { display: flex; flex-direction: column; gap: 7px; }
+.enlaces-modernos a { display: flex; align-items: center; gap: 12px; border-radius: 5px; padding: 12px; font-size: 13px; color: #d6e5e8; }
+.enlaces-modernos a:hover { background: #244b55; color: white; }
+.enlaces-modernos a[aria-current="page"] { background: #0b9b6f; color: white; box-shadow: inset 3px 0 #74ebbc; }
+.pie-menu-moderno { margin-top: auto; border-top: 1px solid #31515b; padding: 20px 12px 4px; font-size: 13px; }
+[data-aspecto="moderno"] .app-header { grid-column: 2; margin: 0; padding: 18px 28px; background: white; border-color: #dce7eb; }
+[data-aspecto="moderno"] .app-header > div { margin-bottom: 0; }
+[data-aspecto="moderno"] .app-nav { display: none; }
+[data-aspecto="moderno"] .app-content { grid-column: 2; padding: 26px 28px; }
+[data-aspecto="moderno"] .text-marca-700,
+[data-aspecto="moderno"] .text-marca-600 { color: #08735d; }
+[data-aspecto="moderno"] .bg-marca-500,
+[data-aspecto="moderno"] .bg-marca-600,
+[data-aspecto="moderno"] .bg-marca-700 { background-color: #098665; }
+[data-aspecto="moderno"] .border-marca-200,
+[data-aspecto="moderno"] .border-marca-100 { border-color: #dce7eb; }
+[data-aspecto="moderno"] .border-marca-400,
+[data-aspecto="moderno"] .border-marca-500 { border-color: #299a80; }
+[data-aspecto="moderno"] input,
+[data-aspecto="moderno"] select,
+[data-aspecto="moderno"] textarea { border-color: #cddce1; }
+[data-aspecto="moderno"] :is(input, select, textarea, button, a):focus-visible { outline: 2px solid #0a9378; outline-offset: 3px; }
+
+@media (max-width: 900px) {
+  [data-aspecto="moderno"] .app-shell { display: block; }
+  [data-aspecto="moderno"] .navegacion-moderna { position: static; height: auto; padding: 8px; }
+  [data-aspecto="moderno"] .marca-moderna,
+  [data-aspecto="moderno"] .pie-menu-moderno { display: none; }
+  [data-aspecto="moderno"] .enlaces-modernos { flex-direction: row; overflow-x: auto; }
+  [data-aspecto="moderno"] .enlaces-modernos a { flex: 0 0 auto; gap: 7px; padding: 10px; }
+  [data-aspecto="moderno"] .app-header { padding: 16px; }
+  [data-aspecto="moderno"] .app-content { padding: 20px 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0s !important; }
+}

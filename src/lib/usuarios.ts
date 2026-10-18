@@ -1,4 +1,5 @@
 import { HOJAS, ROLES, type Rol } from "./constants";
+import { randomBytes, randomUUID } from "node:crypto";
 import { actualizarCelda, agregarFila, generarSiguienteId, leerFilasComoObjetos, obtenerEncabezados, type FilaCruda } from "./sheets";
 import { ErrorAplicacion, verificarPermiso } from "./permissions";
 import { sanearTextoEntrada } from "./validaciones";
@@ -7,6 +8,8 @@ import { comprobarPassword, crearHashPassword } from "./password";
 import type { Usuario } from "./types";
 
 function normalizarUsuario(o: FilaCruda, numeroFila: number): Usuario {
+  const accesoPassword = o.acceso_password === undefined || o.acceso_password === "" ? !!o.password_hash :
+    o.acceso_password === true || o.acceso_password === "TRUE";
   return {
     id_usuario: o.id_usuario,
     email: String(o.email || "").toLowerCase().trim(),
@@ -15,6 +18,11 @@ function normalizarUsuario(o: FilaCruda, numeroFila: number): Usuario {
     ambito_bloques: o.ambito_bloques || "",
     ambito_zonas: o.ambito_zonas || "",
     activo: o.activo === true || o.activo === "TRUE" || o.activo === "VERDADERO",
+    acceso_password: accesoPassword,
+    cambio_password_obligatorio: accesoPassword && (o.cambio_password_obligatorio === undefined || o.cambio_password_obligatorio === "" ?
+      !!o.password_hash : o.cambio_password_obligatorio === true || o.cambio_password_obligatorio === "TRUE"),
+    version_sesion: String(o.version_sesion || ""),
+    password_expira: String(o.password_expira || ""),
     _fila: numeroFila,
   };
 }
@@ -50,7 +58,8 @@ async function comprobarCredenciales(email: string, password: string): Promise<U
   const datos = await leerFilasComoObjetos(HOJAS.USUARIOS);
   const fila = datos.filas.find((f) => String(f.objeto.email || "").toLowerCase().trim() === email.toLowerCase().trim());
   const usuario = fila ? normalizarUsuario(fila.objeto, fila.numeroFila) : null;
-  if (!fila || !usuario?.activo || usuario.rol !== ROLES.ADMINISTRADOR_FINCAS) {
+  if (!fila || !usuario?.activo || !usuario.acceso_password ||
+      (usuario.password_expira && Date.parse(usuario.password_expira) <= Date.now())) {
     await comprobarPassword(password, undefined);
     return null;
   }
@@ -88,6 +97,7 @@ export interface DatosUsuarioEntrada {
   ambitoZonas?: string;
   activo?: boolean;
   password?: string;
+  accesoPassword?: boolean;
 }
 
 // Equivalente a guardarUsuarioCliente: crea o actualiza según exista ya el
@@ -110,14 +120,22 @@ export async function guardarUsuario(actor: Usuario, datos: DatosUsuarioEntrada)
   const existente = await buscarUsuarioPorEmail(email);
   let credenciales: FilaCruda = {};
   if (datos.password) {
-    if (datos.rol !== ROLES.ADMINISTRADOR_FINCAS || datos.password.length < 12 || datos.password.length > 128) {
+    if (datos.password.length < 12 || datos.password.length > 128) {
       throw new ErrorAplicacion("DATOS_INVALIDOS", "Revise la contraseña.", {
-        password: "La contraseña del administrador de fincas debe tener entre 12 y 128 caracteres.",
+        password: "La contraseña debe tener entre 12 y 128 caracteres.",
       });
     }
-    credenciales = { password_hash: await crearHashPassword(datos.password), auth_intentos: 0, auth_bloqueado_hasta: "" };
+    credenciales = {
+      password_hash: await crearHashPassword(datos.password), auth_intentos: 0, auth_bloqueado_hasta: "",
+      cambio_password_obligatorio: true, password_expira: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      version_sesion: randomUUID(),
+    };
   }
-  if (datos.rol === ROLES.ADMINISTRADOR_FINCAS && !datos.password) {
+  const accesoPassword = datos.accesoPassword ?? existente?.acceso_password ?? !!datos.password;
+  if (datos.password && !accesoPassword) {
+    throw new ErrorAplicacion("DATOS_INVALIDOS", "Habilite el acceso con contraseña antes de establecerla.");
+  }
+  if (accesoPassword && !datos.password) {
     const filas = await leerFilasComoObjetos(HOJAS.USUARIOS);
     const hashExistente = filas.filas.find((f) => f.objeto.id_usuario === existente?.id_usuario)?.objeto.password_hash;
     if (!hashExistente) {
@@ -126,6 +144,10 @@ export async function guardarUsuario(actor: Usuario, datos: DatosUsuarioEntrada)
       });
     }
   }
+  if (existente && (datos.activo === false || accesoPassword !== existente.acceso_password)) {
+    credenciales.version_sesion = randomUUID();
+  }
+  credenciales.acceso_password = accesoPassword;
   const encabezados = await obtenerEncabezados(HOJAS.USUARIOS, Object.keys(credenciales));
 
   if (existente) {
@@ -159,4 +181,45 @@ export async function guardarUsuario(actor: Usuario, datos: DatosUsuarioEntrada)
   });
   await registrarAuditoria("CREAR_USUARIO", "USUARIO", idNuevo, `Usuario creado: ${email}`, "OK");
   return idNuevo;
+}
+
+export async function cambiarPasswordPropia(actor: Usuario, actual: string, nueva: string): Promise<void> {
+  if (nueva.length < 12 || nueva.length > 128) {
+    throw new ErrorAplicacion("DATOS_INVALIDOS", "La contraseña debe tener entre 12 y 128 caracteres.");
+  }
+  const datos = await leerFilasComoObjetos(HOJAS.USUARIOS);
+  const fila = datos.filas.find((f) => f.objeto.id_usuario === actor.id_usuario);
+  if (!fila || !actor.acceso_password || !(await comprobarPassword(actual, fila.objeto.password_hash))) {
+    throw new ErrorAplicacion("DATOS_INVALIDOS", "La contraseña actual no es correcta.");
+  }
+  if (await comprobarPassword(nueva, fila.objeto.password_hash)) {
+    throw new ErrorAplicacion("DATOS_INVALIDOS", "La nueva contraseña debe ser distinta de la actual.");
+  }
+  const cambios = {
+    password_hash: await crearHashPassword(nueva), cambio_password_obligatorio: false,
+    password_expira: "", version_sesion: randomUUID(), auth_intentos: 0, auth_bloqueado_hasta: "",
+  };
+  const encabezados = await obtenerEncabezados(HOJAS.USUARIOS, Object.keys(cambios));
+  await actualizarCelda(HOJAS.USUARIOS, fila.numeroFila, encabezados, cambios);
+  await registrarAuditoria("CAMBIAR_PASSWORD", "USUARIO", actor.id_usuario, "Contraseña actualizada", "OK");
+}
+
+export async function resetearPassword(actor: Usuario, idUsuario: string): Promise<string> {
+  verificarPermiso(actor, "USUARIOS_GESTIONAR");
+  if (actor.id_usuario === idUsuario) {
+    throw new ErrorAplicacion("DATOS_INVALIDOS", "Utilice Mi perfil para cambiar su propia contraseña.");
+  }
+  const datos = await leerFilasComoObjetos(HOJAS.USUARIOS);
+  const fila = datos.filas.find((f) => f.objeto.id_usuario === idUsuario);
+  if (!fila) throw new ErrorAplicacion("NO_ENCONTRADO", "Usuario no encontrado.");
+  const temporal = randomBytes(18).toString("base64url");
+  const cambios = {
+    password_hash: await crearHashPassword(temporal), acceso_password: true, cambio_password_obligatorio: true,
+    password_expira: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    version_sesion: randomUUID(), auth_intentos: 0, auth_bloqueado_hasta: "",
+  };
+  const encabezados = await obtenerEncabezados(HOJAS.USUARIOS, Object.keys(cambios));
+  await actualizarCelda(HOJAS.USUARIOS, fila.numeroFila, encabezados, cambios);
+  await registrarAuditoria("RESETEAR_PASSWORD", "USUARIO", idUsuario, "Contraseña temporal generada", "OK");
+  return temporal;
 }

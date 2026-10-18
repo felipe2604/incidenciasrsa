@@ -1,8 +1,10 @@
 "use client";
 import { Suspense, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
+import SelectorAspecto from "@/components/SelectorAspecto";
 
 function LoginContenido() {
   const params = useSearchParams();
@@ -37,10 +39,12 @@ function LoginContenido() {
   }
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-6 text-center">
+      <SelectorAspecto />
       <Image src="/logo.png" alt="Residencial Santa Aurelia" width={96} height={96} className="h-20 w-20 rounded-md object-contain sm:h-24 sm:w-24" priority />
       <h1 className="max-w-sm text-xl font-bold text-marca-700 sm:max-w-md sm:text-2xl">
         Incidencias Residencial Santa Aurelia
       </h1>
+      {params.get("passwordCambiada") && <p role="status" className="text-sm text-green-800">Contraseña actualizada. Inicia sesión de nuevo.</p>}
       {(error || mensaje) && (
         <p role="alert" className="max-w-md rounded-md bg-marca-100/40 p-4 text-marca-900">
           {mensaje || "No se pudo acceder con esta cuenta. Contacte con el administrador si persiste."}
@@ -69,6 +73,7 @@ function LoginContenido() {
           {enviando ? "Accediendo..." : "Acceder"}
         </button>
       </form>
+      <Link href="/recuperar-contrasena" className="text-sm font-medium text-marca-700 underline">¿Has olvidado tu contraseña?</Link>
     </main>
   );
 }

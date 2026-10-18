@@ -1,0 +1,181 @@
+const { test } = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const vm = require("node:vm");
+const ts = require("typescript");
+
+function cargar(archivo, imports = {}) {
+  const exports = {};
+  const codigo = ts.transpileModule(fs.readFileSync(archivo, "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
+  }).outputText;
+  vm.runInNewContext(codigo, { exports, Buffer, Date, URLSearchParams, require: (nombre) => imports[nombre] || require(nombre) });
+  return exports;
+}
+
+const constantes = cargar("src/lib/constants.ts");
+const permisos = cargar("src/lib/permissions.ts", { "./constants": constantes });
+const claves = cargar("src/lib/password.ts");
+const admin = { id_usuario: "ADMIN-TEST", email: "admin@example.invalid", rol: "ADMIN", activo: true };
+const vocal = { id_usuario: "VOCAL-TEST", email: "vocal@example.invalid", rol: "VOCAL", activo: true, ambito_bloques: "B1", ambito_zonas: "PISCINA" };
+const passwordPrueba = "Solo-pruebas-locales-123";
+
+function entornoUsuarios(fila) {
+  const escrituras = [];
+  const usuarios = cargar("src/lib/usuarios.ts", {
+    "./constants": constantes, "./permissions": permisos, "./password": claves,
+    "./sheets": {
+      leerFilasComoObjetos: async () => ({ filas: [{ objeto: fila, numeroFila: 2 }] }),
+      obtenerEncabezados: async () => [],
+      actualizarCelda: async (_hoja, _indice, _encabezados, cambios) => { Object.assign(fila, cambios); escrituras.push(cambios); },
+    },
+    "./validaciones": { sanearTextoEntrada: (valor) => String(valor || "").trim() },
+    "./auditoria": { registrarAuditoria: async () => {} },
+  });
+  return { usuarios, escrituras };
+}
+
+test("todos los roles habilitados entran con contraseña y deben cambiar la inicial", async () => {
+  const hash = await claves.crearHashPassword(passwordPrueba);
+  for (const rol of Object.values(constantes.ROLES)) {
+    const { usuarios } = entornoUsuarios({ ...vocal, rol, password_hash: hash, acceso_password: true });
+    const usuario = await usuarios.autenticarConPassword(vocal.email, passwordPrueba);
+    assert.equal(usuario.rol, rol);
+    assert.equal(usuario.cambio_password_obligatorio, true);
+    assert.equal("password_hash" in usuario, false);
+  }
+});
+
+test("se rechazan cuentas inactivas, acceso deshabilitado y contraseñas caducadas", async () => {
+  const hash = await claves.crearHashPassword(passwordPrueba);
+  for (const cambios of [{ activo: false }, { acceso_password: false }, { password_expira: "2020-01-01T00:00:00Z" }]) {
+    const { usuarios } = entornoUsuarios({ ...vocal, password_hash: hash, acceso_password: true, ...cambios });
+    assert.equal(await usuarios.autenticarConPassword(vocal.email, passwordPrueba), null);
+  }
+});
+
+test("cinco fallos bloquean el acceso y el bloqueo caduca", async () => {
+  const fila = { ...vocal, acceso_password: true, password_hash: await claves.crearHashPassword(passwordPrueba) };
+  const { usuarios } = entornoUsuarios(fila);
+  for (let intento = 0; intento < 5; intento++) assert.equal(await usuarios.autenticarConPassword(vocal.email, "incorrecta"), null);
+  assert.ok(Date.parse(fila.auth_bloqueado_hasta) > Date.now());
+  assert.equal(await usuarios.autenticarConPassword(vocal.email, passwordPrueba), null);
+  fila.auth_bloqueado_hasta = new Date(Date.now() - 1000).toISOString();
+  assert.ok(await usuarios.autenticarConPassword(vocal.email, passwordPrueba));
+  assert.equal(fila.auth_intentos, 0);
+});
+
+test("ADMIN resetea sin exponer hashes y el cambio de contraseña revoca sesiones", async () => {
+  const fila = { ...vocal };
+  const { usuarios, escrituras } = entornoUsuarios(fila);
+  await assert.rejects(() => usuarios.resetearPassword(vocal, vocal.id_usuario), (error) => error.codigo === "PERMISO_DENEGADO");
+  assert.equal(escrituras.length, 0);
+  await assert.rejects(() => usuarios.resetearPassword(admin, admin.id_usuario));
+  const temporal = await usuarios.resetearPassword(admin, vocal.id_usuario);
+  assert.ok(await claves.comprobarPassword(temporal, fila.password_hash));
+  assert.equal(fila.cambio_password_obligatorio, true);
+  assert.ok(Date.parse(fila.password_expira) > Date.now());
+  const anterior = fila.version_sesion;
+  const actor = await usuarios.buscarUsuarioPorEmail(vocal.email);
+  await assert.rejects(() => usuarios.cambiarPasswordPropia(actor, "incorrecta", passwordPrueba));
+  await assert.rejects(() => usuarios.cambiarPasswordPropia(actor, temporal, temporal));
+  await usuarios.cambiarPasswordPropia(actor, temporal, passwordPrueba);
+  assert.equal(fila.cambio_password_obligatorio, false);
+  assert.equal(fila.password_expira, "");
+  assert.notEqual(fila.version_sesion, anterior);
+  assert.ok(await claves.comprobarPassword(passwordPrueba, fila.password_hash));
+});
+
+test("las operaciones rechazan sesión caducada, revocada y cambio pendiente", async () => {
+  let usuario = { ...vocal, version_sesion: "actual", cambio_password_obligatorio: true };
+  let session = { user: { email: vocal.email, versionSesion: "actual", expiraAcceso: Date.now() + 60000 } };
+  const sesion = cargar("src/lib/sesion.ts", {
+    "next-auth": { getServerSession: async () => session }, "@/auth": { authOptions: {} },
+    "./usuarios": { buscarUsuarioPorEmail: async () => usuario }, "./configuracion": { obtenerParametro: async () => "FALSE" },
+    "./permissions": permisos, "./constants": constantes,
+  });
+  await assert.rejects(() => sesion.obtenerUsuarioActual(), (error) => error.codigo === "CAMBIO_PASSWORD_OBLIGATORIO");
+  assert.ok(await sesion.obtenerUsuarioActual({ permitirCambioPassword: true }));
+  usuario = { ...usuario, cambio_password_obligatorio: false, version_sesion: "nueva" };
+  await assert.rejects(() => sesion.obtenerUsuarioActual(), (error) => error.codigo === "ACCESO_NO_AUTORIZADO");
+  session = { user: { email: vocal.email, versionSesion: "nueva", expiraAcceso: Date.now() - 1 } };
+  await assert.rejects(() => sesion.obtenerUsuarioActual(), (error) => error.codigo === "ACCESO_NO_AUTORIZADO");
+});
+
+function entornoIncidencias(filas) {
+  return cargar("src/lib/incidencias.ts", {
+    "./constants": constantes, "./permissions": permisos, "./validaciones": {},
+    "./auditoria": { registrarAuditoria: async () => {} },
+    "./sheets": {
+      leerFilasComoObjetos: async () => ({ encabezados: [], filas: filas.map((objeto, indice) => ({ objeto, numeroFila: indice + 2 })) }),
+      obtenerEncabezados: async () => [],
+      actualizarCelda: async (_hoja, indice, _encabezados, cambios) => Object.assign(filas[indice - 2], cambios),
+    },
+  });
+}
+
+const base = { id_incidencia: "TEST-1", usuario_creador: vocal.id_usuario, tipo_ubicacion: "BLOQUE", bloque: "B1", estado: "EN_CURSO", fecha_creacion: "2026-01-10T23:59:59Z", fecha_ultima_modificacion: "2026-02-10T10:00:00Z", titulo: "Incidencia" };
+
+test("archivado a los 15 días, conservación del estado y reapertura", async () => {
+  const ahora = Date.now();
+  const fecha = new Date(ahora - 15 * 86400000).toISOString();
+  const fila = { ...base, estado: "RESUELTA", fecha_estado_final: fecha, fecha_resolucion: fecha };
+  const lib = entornoIncidencias([fila]);
+  assert.equal(lib.estaArchivada(fila, ahora), true);
+  assert.equal(lib.estaArchivada(fila, ahora - 1), false);
+  assert.equal((await lib.listarIncidencias(admin)).length, 0);
+  const historico = await lib.listarIncidencias(admin, { incluirArchivadas: true });
+  assert.equal(historico.length, 1);
+  assert.equal(historico[0].estado, "RESUELTA");
+  assert.equal(historico[0].archivada, true);
+  await lib.cambiarEstadoIncidencia(admin, base.id_incidencia, "CERRADA");
+  assert.equal(lib.estaArchivada(fila), false);
+  await lib.cambiarEstadoIncidencia(admin, base.id_incidencia, "REABIERTA");
+  assert.equal(fila.archivada, false);
+  assert.equal(fila.fecha_estado_final, "");
+  assert.equal(fila.fecha_resolucion, "");
+});
+
+test("ubicación y fechas inclusivas respetan el ámbito del vocal", async () => {
+  const lib = entornoIncidencias([base, { ...base, id_incidencia: "TEST-2", bloque: "B2" },
+    { ...base, id_incidencia: "TEST-3", tipo_ubicacion: "ZONA_COMUN", bloque: "", zona_comun: "PISCINA" }]);
+  assert.equal((await lib.listarIncidencias(vocal, { bloque: "B2" })).length, 0);
+  assert.equal((await lib.listarIncidencias(vocal, { bloque: "B1", zona: "PISCINA" })).length, 2);
+  assert.equal((await lib.listarIncidencias(vocal, { fechaDesde: "2026-01-10", fechaHasta: "2026-01-10" })).length, 2);
+  assert.equal((await lib.listarIncidencias(vocal, { fechaDesde: "2026-02-10", fechaHasta: "2026-02-10", campoFecha: "actividad" })).length, 2);
+  assert.equal((await lib.listarIncidencias(vocal, { fechaDesde: "2026-02-10", campoFecha: "resolucion" })).length, 0);
+  await assert.rejects(() => lib.listarIncidencias(admin, { fechaDesde: "2026-02-30" }));
+  await assert.rejects(() => lib.listarIncidencias(admin, { fechaDesde: "2026-03-01", fechaHasta: "2026-01-01" }));
+});
+
+test("filtros compartidos no elevan visibilidad ni buscan contenido confidencial oculto", async () => {
+  const lib = entornoIncidencias([{ ...base, usuario_creador: "OTRO", confidencial: true, descripcion: "secreto-test" }]);
+  const filtros = lib.leerFiltrosIncidencias(new URLSearchParams("bloque=B1&fechaDesde=2026-01-01&incluirArchivadas=true"));
+  assert.equal(filtros.bloque, "B1");
+  assert.equal(filtros.incluirArchivadas, undefined);
+  assert.equal((await lib.listarIncidencias(vocal, { texto: "secreto-test" })).length, 0);
+  assert.equal((await lib.listarIncidencias(admin, { texto: "secreto-test" })).length, 1);
+});
+
+test("tarjetas y detalle muestran nombres completos de ubicación, planta y categoría", () => {
+  const React = require("react");
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const Componente = cargar("src/components/UbicacionCategoriaIncidencia.tsx").default;
+  const catalogos = {
+    BLOQUES: [{ codigo: "B1", etiqueta: "Bloque 1" }], PLANTAS: [{ codigo: "P1", etiqueta: "Primera planta" }],
+    ZONAS: [{ codigo: "PISC", etiqueta: "Piscina comunitaria" }], CATEGORIAS: [{ codigo: "FONT", etiqueta: "Fontanería" }],
+  };
+  const incidencia = { tipoUbicacion: "BLOQUE", bloque: "B1", planta: "P1", categoria: "FONT", ubicacionDetalle: "Portal derecho" };
+  const bloque = renderToStaticMarkup(React.createElement(Componente, { incidencia, catalogos }));
+  for (const texto of ["Bloque 1", "Primera planta", "Fontanería", "Portal derecho"]) assert.ok(bloque.includes(texto));
+  const zona = renderToStaticMarkup(React.createElement(Componente, { incidencia: { ...incidencia, tipoUbicacion: "ZONA_COMUN", zonaComun: "PISC" }, catalogos }));
+  assert.ok(zona.includes("Zona común"));
+  assert.ok(zona.includes("Piscina comunitaria"));
+});
+
+test("deshabilitar el acceso local no bloquea el acceso Google por un cambio pendiente", async () => {
+  const { usuarios } = entornoUsuarios({ ...vocal, acceso_password: false, cambio_password_obligatorio: true, password_hash: "hash-no-utilizado" });
+  const usuario = await usuarios.buscarUsuarioPorEmail(vocal.email);
+  assert.equal(usuario.acceso_password, false);
+  assert.equal(usuario.cambio_password_obligatorio, false);
+});

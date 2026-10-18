@@ -1,6 +1,7 @@
 import { ESTADOS, ESTADOS_PENDIENTES, ESTADOS_SIN_TRABAJO_PENDIENTE, HOJAS, TIPO_UBICACION, type Estado } from "./constants";
 import { leerFilasComoObjetos } from "./sheets";
 import { incidenciaEnAmbito } from "./permissions";
+import { estaArchivada } from "./incidencias";
 import type { Incidencia, Usuario } from "./types";
 
 export interface IncidenciaReciente {
@@ -31,7 +32,7 @@ export async function obtenerDatosPanel(actor: Usuario): Promise<DatosPanel> {
   const incidencias = datos.filas
     .map((f) => f.objeto as Incidencia)
     .filter((inc) => incidenciaEnAmbito(actor, inc))
-    .filter((inc) => !(inc.archivada === true || inc.archivada === "TRUE"));
+    .filter((inc) => !estaArchivada(inc));
 
   const hoy = new Date().toISOString().slice(0, 10);
   const estaAbierta = (inc: Incidencia) => !ESTADOS_SIN_TRABAJO_PENDIENTE.includes(inc.estado);

@@ -53,6 +53,7 @@ export const esquemaUsuario = z.object({
   ambitoZonas: z.string().max(500).nullish().transform((v) => v ?? undefined),
   activo: z.boolean().optional(),
   password: z.string().max(128).optional(),
+  accesoPassword: z.boolean().optional(),
 });
 
 const CLAVES_CATALOGO = ["BLOQUE", "PLANTA", "ZONA", "CATEGORIA"] as const;

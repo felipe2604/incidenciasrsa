@@ -1,22 +1,30 @@
 import Image from "next/image";
 import Link from "next/link";
-import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import { authOptions } from "@/auth";
+import { obtenerUsuarioActual } from "@/lib/sesion";
+import { ErrorAplicacion } from "@/lib/permissions";
 import CerrarSesionBoton from "@/components/CerrarSesionBoton";
+import SelectorAspecto from "@/components/SelectorAspecto";
+import NavegacionModerna from "@/components/NavegacionModerna";
 
 export default async function IncidenciasLayout({ children }: { children: React.ReactNode }) {
-  const session = await getServerSession(authOptions);
-  if (!session) redirect("/login");
+  let actor;
+  try { actor = await obtenerUsuarioActual({ permitirCambioPassword: true }); }
+  catch (error) {
+    if (error instanceof ErrorAplicacion && error.codigo === "ACCESO_NO_AUTORIZADO") redirect("/login");
+    throw error;
+  }
+  if (actor.cambio_password_obligatorio) redirect("/cambiar-contrasena");
   // Solo oculta/muestra enlaces de navegación por comodidad: cada página
   // revalida el permiso real contra la hoja de Usuarios en el servidor.
-  const rol = session.user?.rol;
+  const rol = actor.rol;
   const esAdmin = rol === "ADMIN";
   const puedeVerInformes = esAdmin || rol === "PRESIDENTE" || rol === "ADMINISTRADOR_FINCAS";
 
   return (
-    <div className="mx-auto max-w-6xl p-3 sm:p-6">
-      <header className="mb-4 border-b border-marca-200 pb-3">
+    <div className="app-shell mx-auto max-w-6xl p-3 sm:p-6">
+      <NavegacionModerna informes={puedeVerInformes} administracion={esAdmin} />
+      <header className="app-header mb-4 border-b border-marca-200 pb-3">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <Link href="/incidencias/panel" className="flex items-center gap-3">
             <Image
@@ -28,16 +36,18 @@ export default async function IncidenciasLayout({ children }: { children: React.
               priority
             />
             <div className="flex flex-col leading-tight">
-              <span className="text-lg font-bold tracking-tight text-marca-700 sm:text-xl">Incidencias RSA</span>
+              <span className="text-lg font-bold text-marca-700 sm:text-xl">Incidencias RSA</span>
               <span className="text-xs font-medium text-gray-500">Residencial Santa Aurelia</span>
             </div>
           </Link>
-          <div className="flex items-center gap-3 text-sm">
-            <span className="hidden sm:inline">{session.user?.nombre || session.user?.email}</span>
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <SelectorAspecto />
+            <Link href="/incidencias/perfil" className="hidden font-medium hover:underline sm:inline">{actor.nombre || actor.email}</Link>
             <CerrarSesionBoton />
           </div>
         </div>
-        <nav className="-mx-1 flex gap-1 overflow-x-auto text-sm font-medium text-marca-700 sm:gap-2">
+        <nav className="app-nav -mx-1 flex gap-1 overflow-x-auto text-sm font-medium text-marca-700 sm:gap-2">
+          <Link href="/incidencias/perfil" className="whitespace-nowrap rounded-md px-2 py-1 hover:bg-marca-100/50">Mi perfil</Link>
           <Link href="/incidencias/panel" className="whitespace-nowrap rounded-md px-2 py-1 hover:bg-marca-100/50">
             Panel
           </Link>
@@ -56,7 +66,7 @@ export default async function IncidenciasLayout({ children }: { children: React.
           )}
         </nav>
       </header>
-      {children}
+      <main className="app-content min-w-0">{children}</main>
     </div>
   );
 }

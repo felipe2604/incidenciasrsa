@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ["googleapis"],
   // La compresión de imágenes se hace en el navegador antes de subir; el
   // servidor solo necesita aceptar los adjuntos ya reducidos.
   // pdfkit (usado por @react-pdf/renderer) carga sus fuentes estándar con un

@@ -8,6 +8,7 @@ import AccesoDenegado from "@/components/AccesoDenegado";
 import FormularioComentario from "@/components/FormularioComentario";
 import CambiarEstadoIncidencia from "@/components/CambiarEstadoIncidencia";
 import ModalEditarIncidencia from "@/components/ModalEditarIncidencia";
+import UbicacionCategoriaIncidencia from "@/components/UbicacionCategoriaIncidencia";
 
 export default async function DetalleIncidenciaPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -69,14 +70,15 @@ export default async function DetalleIncidenciaPage({ params }: { params: Promis
           )}
         </div>
         <p className="mt-1 text-sm text-gray-500">
-          {incidencia.idIncidencia} · {incidencia.categoria} · {incidencia.prioridad}
+          {incidencia.idIncidencia} · Prioridad {incidencia.prioridad}
         </p>
+        <UbicacionCategoriaIncidencia incidencia={incidencia} catalogos={catalogos} />
         <span
           className={`mt-2 inline-block rounded-full px-3 py-1 text-sm font-medium ${
             COLORES_ESTADO[incidencia.estado as Estado] || "bg-marca-200"
           }`}
         >
-          {ETIQUETAS_ESTADO[incidencia.estado as Estado] || incidencia.estado}
+          {incidencia.archivada ? "Archivada · " : ""}{ETIQUETAS_ESTADO[incidencia.estado as Estado] || incidencia.estado}
         </span>
         <p className="mt-3 whitespace-pre-wrap text-gray-700">{incidencia.descripcion}</p>
       </div>

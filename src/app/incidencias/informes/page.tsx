@@ -3,10 +3,12 @@ import { obtenerUsuarioActual } from "@/lib/sesion";
 import { tienePermiso } from "@/lib/permissions";
 import { formatearMoneda, obtenerInformeResumen } from "@/lib/informes";
 import { obtenerCatalogos } from "@/lib/catalogos";
-import { ESTADOS, ETIQUETAS_ESTADO, PRIORIDADES } from "@/lib/constants";
+import { ETIQUETAS_ESTADO, COLORES_ESTADO } from "@/lib/constants";
+import { leerFiltrosIncidencias } from "@/lib/incidencias";
+import FormularioFiltrosIncidencias from "@/components/FormularioFiltrosIncidencias";
 import AccesoDenegado from "@/components/AccesoDenegado";
 
-type ParametrosBusqueda = { texto?: string; estado?: string; prioridad?: string; categoria?: string };
+type ParametrosBusqueda = Record<string, string | undefined>;
 
 export default async function InformesPage({ searchParams }: { searchParams: Promise<ParametrosBusqueda> }) {
   const parametros = await searchParams;
@@ -20,14 +22,13 @@ export default async function InformesPage({ searchParams }: { searchParams: Pro
     return <AccesoDenegado mensaje="No tiene permisos para ver informes." />;
   }
 
-  const filtros = {
-    texto: parametros.texto || undefined,
-    estado: parametros.estado || undefined,
-    prioridad: parametros.prioridad || undefined,
-    categoria: parametros.categoria || undefined,
-  };
-  const resumen = await obtenerInformeResumen(actor, filtros);
+  const filtros = leerFiltrosIncidencias(new URLSearchParams(Object.entries(parametros).filter(([, valor]) => !!valor) as [string, string][]));
   const catalogos = await obtenerCatalogos();
+  let resumen;
+  try { resumen = await obtenerInformeResumen(actor, filtros); }
+  catch (error) {
+    return <div><h2 className="mb-4 text-xl font-semibold">Informes</h2><FormularioFiltrosIncidencias parametros={parametros} catalogos={catalogos} informes /><p role="alert" className="text-red-700">{(error as Error).message}</p></div>;
+  }
   const queryCsv = new URLSearchParams(Object.entries(filtros).filter(([, v]) => v) as [string, string][]).toString();
 
   const tarjetas = [
@@ -59,47 +60,7 @@ export default async function InformesPage({ searchParams }: { searchParams: Pro
         </div>
       </div>
 
-      <form className="mb-5 grid grid-cols-2 gap-2 rounded-md border border-marca-200 bg-white p-3 sm:grid-cols-4 lg:grid-cols-5">
-        <input
-          type="text"
-          name="texto"
-          placeholder="Buscar..."
-          defaultValue={parametros.texto || ""}
-          className="col-span-2 rounded-md border p-2 text-sm lg:col-span-2"
-        />
-        <select name="estado" defaultValue={parametros.estado || ""} className="rounded-md border p-2 text-sm">
-          <option value="">Todos los estados</option>
-          {Object.values(ESTADOS).map((e) => (
-            <option key={e} value={e}>
-              {ETIQUETAS_ESTADO[e]}
-            </option>
-          ))}
-        </select>
-        <select name="prioridad" defaultValue={parametros.prioridad || ""} className="rounded-md border p-2 text-sm">
-          <option value="">Toda prioridad</option>
-          {PRIORIDADES.map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </select>
-        <select name="categoria" defaultValue={parametros.categoria || ""} className="rounded-md border p-2 text-sm">
-          <option value="">Toda categoría</option>
-          {catalogos.CATEGORIAS.map((c) => (
-            <option key={c.codigo} value={c.codigo}>
-              {c.etiqueta}
-            </option>
-          ))}
-        </select>
-        <div className="col-span-2 flex gap-2 sm:col-span-4 lg:col-span-5">
-          <button type="submit" className="rounded-md bg-marca-500 px-4 py-2 text-sm font-medium text-white hover:bg-marca-600">
-            Filtrar
-          </button>
-          <Link href="/incidencias/informes" className="rounded-md border px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">
-            Limpiar
-          </Link>
-        </div>
-      </form>
+      <FormularioFiltrosIncidencias parametros={parametros} catalogos={catalogos} informes />
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {tarjetas.map((t) => (
@@ -109,6 +70,22 @@ export default async function InformesPage({ searchParams }: { searchParams: Pro
           </div>
         ))}
       </div>
+
+      <section className="mb-6 overflow-x-auto border-y border-marca-200 py-4">
+        <h3 className="mb-3 font-semibold">Detalle de incidencias ({resumen.incidencias.length})</h3>
+        <table className="w-full min-w-[600px] text-left text-sm">
+          <thead><tr className="border-b text-xs text-gray-500"><th className="p-2">Incidencia</th><th className="p-2">Alta</th><th className="p-2">Ubicación</th><th className="p-2">Estado</th></tr></thead>
+          <tbody>{resumen.incidencias.map((incidencia) => (
+            <tr key={incidencia.idIncidencia} className="border-b border-gray-100">
+              <td className="p-2"><Link className="font-medium hover:underline" href={`/incidencias/${incidencia.idIncidencia}`}>{incidencia.titulo}</Link><div className="text-xs text-gray-500">{incidencia.idIncidencia}</div></td>
+              <td className="p-2">{incidencia.fechaCreacion.slice(0, 10)}</td>
+              <td className="p-2">{incidencia.bloque || incidencia.zonaComun}</td>
+              <td className="p-2"><span className={`inline-block rounded-full px-2 py-1 text-xs ${COLORES_ESTADO[incidencia.estado]}`}>{incidencia.archivada ? "Archivada · " : ""}{ETIQUETAS_ESTADO[incidencia.estado]}</span></td>
+            </tr>
+          ))}</tbody>
+        </table>
+        {resumen.incidencias.length === 0 && <p className="py-3 text-sm text-gray-500">Sin incidencias para estos filtros.</p>}
+      </section>
 
       <div className="grid gap-4 md:grid-cols-2">
         <section className="rounded-md border border-marca-200 p-3">

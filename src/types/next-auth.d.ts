@@ -8,6 +8,8 @@ declare module "next-auth" {
       nombre?: string;
       ambitoBloques?: string;
       ambitoZonas?: string;
+      versionSesion?: string;
+      expiraAcceso?: number;
     } & DefaultSession["user"];
   }
 }
@@ -19,5 +21,7 @@ declare module "next-auth/jwt" {
     nombre?: string;
     ambitoBloques?: string;
     ambitoZonas?: string;
+    versionSesion?: string;
+    expiraAcceso?: number;
   }
 }

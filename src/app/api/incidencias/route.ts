@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { obtenerUsuarioActual } from "@/lib/sesion";
-import { crearIncidencia, listarIncidencias } from "@/lib/incidencias";
+import { crearIncidencia, leerFiltrosIncidencias, listarIncidencias } from "@/lib/incidencias";
 import { manejarErrorApi } from "@/lib/api";
 import { esquemaNuevaIncidencia } from "@/lib/esquemas";
 
@@ -9,9 +9,8 @@ export async function GET(request: NextRequest) {
     const actor = await obtenerUsuarioActual();
     const { searchParams } = new URL(request.url);
     const incidencias = await listarIncidencias(actor, {
-      texto: searchParams.get("texto") || undefined,
+      ...leerFiltrosIncidencias(searchParams),
       incluirArchivadas: searchParams.get("incluirArchivadas") === "true",
-      estado: searchParams.get("estado") || undefined,
     });
     return NextResponse.json({ ok: true, data: incidencias });
   } catch (e) {

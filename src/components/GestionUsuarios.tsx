@@ -12,9 +12,10 @@ interface DatosFormulario {
   ambitoZonas: string;
   activo: boolean;
   password: string;
+  accesoPassword: boolean;
 }
 
-const VACIO: DatosFormulario = { email: "", nombre: "", rol: ROLES.VOCAL, ambitoBloques: "", ambitoZonas: "", activo: true, password: "" };
+const VACIO: DatosFormulario = { email: "", nombre: "", rol: ROLES.VOCAL, ambitoBloques: "", ambitoZonas: "", activo: true, password: "", accesoPassword: false };
 
 export default function GestionUsuarios({ usuarios }: { usuarios: Usuario[] }) {
   const router = useRouter();
@@ -24,6 +25,23 @@ export default function GestionUsuarios({ usuarios }: { usuarios: Usuario[] }) {
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [mensaje, setMensaje] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const [temporal, setTemporal] = useState<{ email: string; password: string } | null>(null);
+  const [copiada, setCopiada] = useState(false);
+
+  async function resetear(usuario: Usuario) {
+    if (!window.confirm(`¿Restablecer la contraseña de ${usuario.nombre}? Se cerrarán sus sesiones anteriores.`)) return;
+    setEnviando(true);
+    setMensaje("");
+    try {
+      const respuesta = await fetch(`/api/usuarios/${encodeURIComponent(usuario.id_usuario)}/password`, { method: "POST" });
+      const resultado = await respuesta.json();
+      if (!resultado.ok) { setMensaje(resultado.message || "No se pudo restablecer la contraseña."); return; }
+      setCopiada(false);
+      setTemporal({ email: usuario.email, password: resultado.data.passwordTemporal });
+      router.refresh();
+    } catch { setMensaje("No se pudo conectar. Inténtelo más tarde."); }
+    finally { setEnviando(false); }
+  }
 
   function abrirNuevo() {
     setDatos(VACIO);
@@ -42,6 +60,7 @@ export default function GestionUsuarios({ usuarios }: { usuarios: Usuario[] }) {
       ambitoZonas: u.ambito_zonas,
       activo: u.activo,
       password: "",
+      accesoPassword: !!u.acceso_password,
     });
     setEditandoEmail(u.email);
     setErrores({});
@@ -58,7 +77,7 @@ export default function GestionUsuarios({ usuarios }: { usuarios: Usuario[] }) {
       const resp = await fetch("/api/usuarios", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...datos, password: datos.rol === ROLES.ADMINISTRADOR_FINCAS ? datos.password : undefined }),
+        body: JSON.stringify({ ...datos, password: datos.accesoPassword ? datos.password : undefined }),
       });
       const json = await resp.json();
       if (!json.ok) {
@@ -79,6 +98,24 @@ export default function GestionUsuarios({ usuarios }: { usuarios: Usuario[] }) {
 
   return (
     <div>
+      {mensaje && !abierto && <p role="alert" className="mb-3 text-sm text-red-700">{mensaje}</p>}
+      {temporal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <section role="dialog" aria-modal="true" aria-labelledby="titulo-temporal" className="w-full max-w-md space-y-4 rounded-md bg-white p-6 shadow-xl">
+            <h3 id="titulo-temporal" className="text-lg font-semibold">Contraseña temporal</h3>
+            <p className="break-all text-sm">{temporal.email}</p>
+            <input aria-label="Contraseña temporal" readOnly value={temporal.password} className="w-full rounded-md border p-3 font-mono" />
+            <p className="text-sm text-gray-600">Caduca en 24 horas. Será obligatorio cambiarla al entrar. No se ha enviado por correo.</p>
+            <div className="flex flex-wrap gap-2">
+              <button className="rounded-md bg-marca-600 px-3 py-2 text-white" onClick={async () => {
+                try { await navigator.clipboard.writeText(temporal.password); setCopiada(true); }
+                catch { setCopiada(false); }
+              }}>{copiada ? "Copiada" : "Copiar contraseña"}</button>
+              <button className="rounded-md border px-3 py-2" onClick={() => setTemporal(null)}>Cerrar</button>
+            </div>
+          </section>
+        </div>
+      )}
       <div className="mb-4 flex justify-end">
         <button
           onClick={abrirNuevo}
@@ -111,6 +148,9 @@ export default function GestionUsuarios({ usuarios }: { usuarios: Usuario[] }) {
                 <td className="whitespace-nowrap px-3 py-2">{u.ambito_zonas || "—"}</td>
                 <td className="whitespace-nowrap px-3 py-2">{u.activo ? "Sí" : "No"}</td>
                 <td className="whitespace-nowrap px-3 py-2 text-right">
+                  <button disabled={enviando} onClick={() => resetear(u)} className="mr-2 rounded-md border border-gray-300 px-3 py-1 text-xs font-semibold hover:bg-gray-100 disabled:opacity-50">
+                    Resetear contraseña
+                  </button>
                   <button
                     onClick={() => abrirEdicion(u)}
                     className="rounded-md border border-marca-400 px-3 py-1 text-xs font-semibold text-marca-600 hover:bg-marca-500 hover:text-white"
@@ -188,10 +228,14 @@ export default function GestionUsuarios({ usuarios }: { usuarios: Usuario[] }) {
                 </select>
                 {errores.rol && <p className="text-sm text-marca-700">{errores.rol}</p>}
               </div>
-              {datos.rol === ROLES.ADMINISTRADOR_FINCAS && (
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={datos.accesoPassword} onChange={(e) => setDatos({ ...datos, accesoPassword: e.target.checked, password: "" })} />
+                Permitir acceso con correo y contraseña
+              </label>
+              {datos.accesoPassword && (
                 <div>
                   <label className="block text-sm font-medium" htmlFor="passwordUsuario">
-                    {editandoEmail ? "Nueva contraseña (opcional)" : "Contraseña"}
+                    {editandoEmail ? "Nueva contraseña temporal (opcional)" : "Contraseña temporal"}
                   </label>
                   <input
                     id="passwordUsuario"
