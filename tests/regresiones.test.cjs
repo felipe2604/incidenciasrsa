@@ -9,7 +9,7 @@ function cargar(archivo, imports = {}) {
   const codigo = ts.transpileModule(fs.readFileSync(archivo, "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
-  vm.runInNewContext(codigo, { exports, Buffer, Date, URLSearchParams, require: (nombre) => imports[nombre] || require(nombre) });
+  vm.runInNewContext(codigo, { exports, Buffer, Date, URLSearchParams, process: { env: { GOOGLE_SHEETS_SPREADSHEET_ID: "TEST" } }, require: (nombre) => imports[nombre] || require(nombre) });
   return exports;
 }
 
@@ -178,4 +178,86 @@ test("deshabilitar el acceso local no bloquea el acceso Google por un cambio pen
   const usuario = await usuarios.buscarUsuarioPorEmail(vocal.email);
   assert.equal(usuario.acceso_password, false);
   assert.equal(usuario.cambio_password_obligatorio, false);
+});
+
+function entornoEliminacion({ archivos = [], falloBlob = false, existe = true } = {}) {
+  const eventos = [];
+  const datos = {
+    Incidencias: [{ objeto: { id_incidencia: "INC-BORRAR" }, numeroFila: 4 }],
+    Archivos: archivos.map((archivo, indice) => ({ objeto: { ...archivo, id_incidencia: "INC-BORRAR" }, numeroFila: indice + 2 })),
+    Comentarios: [{ objeto: { id_incidencia: "INC-BORRAR" }, numeroFila: 7 }],
+    Actuaciones: [{ objeto: { id_incidencia: "OTRA" }, numeroFila: 2 }, { objeto: { id_incidencia: "INC-BORRAR" }, numeroFila: 8 }],
+    Notificaciones: [{ objeto: { id_incidencia: "INC-BORRAR" }, numeroFila: 3 }],
+  };
+  const lib = cargar("src/lib/eliminarIncidencia.ts", {
+    "./constants": constantes, "./permissions": permisos,
+    "./incidencias": { obtenerIncidenciaDetalle: async () => { eventos.push("consultar"); if (!existe) throw new permisos.ErrorAplicacion("NO_ENCONTRADO", "No existe"); } },
+    "./sheets": {
+      leerFilasComoObjetos: async (hoja) => ({ filas: datos[hoja] }),
+      eliminarFilas: async (filas) => { eventos.push({ limpiar: filas }); },
+    },
+    "@vercel/blob": {
+      list: async ({ prefix, cursor }) => {
+        assert.equal(prefix, "incidencias/INC-BORRAR/");
+        return cursor ? { blobs: [{ url: "https://blob.test/segunda.jpg" }], hasMore: false } :
+          { blobs: [{ url: "https://blob.test/primera.jpg" }], hasMore: true, cursor: "pagina-2" };
+      },
+      del: async (urls) => { eventos.push({ blobs: urls }); if (falloBlob) throw new Error("Blob no disponible"); },
+    },
+    "./auditoria": { registrarAuditoria: async () => { eventos.push("auditar"); } },
+  });
+  return { eliminar: lib.eliminarIncidencia, eventos };
+}
+
+test("solo ADMIN elimina: todos los demás perfiles se rechazan antes de leer datos", async () => {
+  for (const rol of ["VOCAL", "COORDINADOR", "PRESIDENTE", "ADMINISTRADOR_FINCAS"]) {
+    const { eliminar, eventos } = entornoEliminacion();
+    await assert.rejects(() => eliminar({ ...admin, rol }, "INC-BORRAR"), (error) => error.codigo === "PERMISO_DENEGADO");
+    assert.equal(eventos.length, 0);
+  }
+});
+
+test("eliminación borra blobs paginados y registros asociados, conservando otras incidencias", async () => {
+  const { eliminar, eventos } = entornoEliminacion({ archivos: [{ url_blob: "https://blob.test/guardada.jpg" }, {}] });
+  await eliminar(admin, "INC-BORRAR");
+  assert.equal(eventos[0], "consultar");
+  assert.equal(eventos[1].blobs.length, 3);
+  assert.ok(eventos[1].blobs.includes("https://blob.test/guardada.jpg"));
+  const filas = eventos[2].limpiar;
+  assert.equal(filas.length, 6);
+  assert.ok(filas.some((fila) => fila.hoja === "Incidencias" && fila.numeroFila === 4));
+  assert.ok(filas.some((fila) => fila.hoja === "Actuaciones" && fila.numeroFila === 8));
+  assert.equal(filas.some((fila) => fila.hoja === "Actuaciones" && fila.numeroFila === 2), false);
+  assert.equal(eventos[3], "auditar");
+});
+
+test("si falla Blob, no se borra la incidencia ni sus registros", async () => {
+  const { eliminar, eventos } = entornoEliminacion({ archivos: [{ url_blob: "https://blob.test/guardada.jpg" }], falloBlob: true });
+  await assert.rejects(() => eliminar(admin, "INC-BORRAR"));
+  assert.equal(eventos.some((evento) => evento.limpiar), false);
+  assert.equal(eventos.includes("auditar"), false);
+});
+
+test("sin adjuntos no se necesita Blob; una incidencia inexistente no borra nada", async () => {
+  const { eliminar, eventos } = entornoEliminacion();
+  await eliminar(admin, "INC-BORRAR");
+  assert.equal(eventos.some((evento) => evento.blobs), false);
+  assert.equal(eventos[1].limpiar.length, 4);
+  const inexistente = entornoEliminacion({ existe: false });
+  await assert.rejects(() => inexistente.eliminar(admin, "INC-BORRAR"), (error) => error.codigo === "NO_ENCONTRADO");
+  assert.equal(inexistente.eventos.length, 1);
+});
+
+test("limpiar filas conserva cabeceras y usa una sola operación sin desplazar otras filas", async () => {
+  const peticiones = [];
+  const sheets = cargar("src/lib/sheets.ts", { googleapis: { google: {
+    auth: { JWT: class { async authorize() {} } },
+    sheets: () => ({ spreadsheets: { values: { batchClear: async (peticion) => { peticiones.push(peticion); } } } }),
+  } } });
+  await sheets.eliminarFilas([{ hoja: "Incidencias", numeroFila: 4 }, { hoja: "Archivos", numeroFila: 7 }]);
+  assert.equal(peticiones.length, 1);
+  assert.equal(peticiones[0].requestBody.ranges.join(","), "Incidencias!4:4,Archivos!7:7");
+  await assert.rejects(() => sheets.eliminarFilas([{ hoja: "Incidencias", numeroFila: 1 }]));
+  await sheets.eliminarFilas([]);
+  assert.equal(peticiones.length, 1);
 });

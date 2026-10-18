@@ -118,6 +118,18 @@ export async function actualizarCelda(
   });
 }
 
+export async function eliminarFilas(filas: { hoja: string; numeroFila: number }[]): Promise<void> {
+  if (filas.length === 0) return;
+  if (filas.some((fila) => !Number.isInteger(fila.numeroFila) || fila.numeroFila < 2)) {
+    throw new Error("No se pueden eliminar las cabeceras de una hoja.");
+  }
+  const sheets = await obtenerApiSheets();
+  await sheets.spreadsheets.values.batchClear({
+    spreadsheetId: SPREADSHEET_ID,
+    requestBody: { ranges: filas.map(({ hoja, numeroFila }) => `${hoja}!${numeroFila}:${numeroFila}`) },
+  });
+}
+
 // Contador correlativo (INC000001, ACT000001...) guardado en la pestaña
 // Configuracion. A diferencia de Apps Script (LockService), la API de Sheets no
 // ofrece bloqueo real: se usa reintento optimista, suficiente para el volumen

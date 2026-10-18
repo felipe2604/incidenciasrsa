@@ -33,6 +33,8 @@ const hojas = {
   ]),
   Archivos: tabla([], ["id_archivo", "id_incidencia", "eliminado"]),
   Comentarios: tabla([], ["id_comentario", "id_incidencia", "texto", "fecha", "usuario"]),
+  Actuaciones: tabla([], ["id_actuacion", "id_incidencia"]),
+  Notificaciones: tabla([], ["id_notificacion", "id_incidencia"]),
   Auditoria: tabla([], ["id_auditoria", "fecha", "accion", "entidad", "id_entidad", "detalle", "resultado"]),
 };
 
@@ -64,6 +66,15 @@ const values = {
   async append({ range, requestBody }) { hojas[range].push(...requestBody.values); return { data: {} }; },
   async batchUpdate({ requestBody }) {
     requestBody.data.forEach((cambio) => escribir(cambio.range, cambio.values));
+    return { data: {} };
+  },
+  async batchClear({ requestBody }) {
+    for (const range of requestBody.ranges) {
+      const [nombre, filas] = range.split("!");
+      const fila = Number(filas.split(":")[0]);
+      if (!Number.isInteger(fila) || fila < 2) throw new Error("Fila no válida para eliminar");
+      hojas[nombre][fila - 1] = [];
+    }
     return { data: {} };
   },
 };

@@ -3,6 +3,18 @@ import { obtenerUsuarioActual } from "@/lib/sesion";
 import { actualizarIncidencia, cambiarEstadoIncidencia, obtenerIncidenciaDetalle } from "@/lib/incidencias";
 import { manejarErrorApi } from "@/lib/api";
 import { esquemaCambiarEstado, esquemaNuevaIncidencia } from "@/lib/esquemas";
+import { eliminarIncidencia } from "@/lib/eliminarIncidencia";
+
+export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const actor = await obtenerUsuarioActual();
+    const { id } = await params;
+    await eliminarIncidencia(actor, id);
+    return NextResponse.json({ ok: true, message: "Incidencia y adjuntos eliminados." }, { headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    return manejarErrorApi(error);
+  }
+}
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {

@@ -137,6 +137,14 @@ informes y enlace directo con su estado original y la marca «Archivada».
 Reabrirlas elimina la marca. Para datos históricos sin fecha de estado final,
 se utiliza la fecha de resolución o de última modificación existente.
 
+Solo ADMIN puede eliminar una incidencia desde su detalle, confirmando su
+identificador. La eliminación es definitiva: borra los adjuntos en Vercel Blob y
+vacía los registros de la incidencia, archivos, comentarios, actuaciones y
+notificaciones asociados, sin desplazar otras filas. Se conserva la auditoría.
+Si el borrado de Blob falla, no se limpian los registros de Sheets. Si falla Sheets
+después de borrar archivos, la operación se puede reintentar; ambos servicios no
+comparten una transacción.
+
 El selector Actual/Moderno conserva el aspecto original por defecto y guarda la
 elección en el navegador. No cambia permisos ni datos.
 

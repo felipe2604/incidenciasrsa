@@ -3,12 +3,13 @@ import { listarComentarios, obtenerIncidenciaDetalle } from "@/lib/incidencias";
 import { listarArchivosPorIncidencia } from "@/lib/archivos";
 import { puedeCambiarEstado, tienePermiso } from "@/lib/permissions";
 import { obtenerCatalogos } from "@/lib/catalogos";
-import { TRANSICIONES_ESTADO, ETIQUETAS_ESTADO, COLORES_ESTADO, type Estado } from "@/lib/constants";
+import { TRANSICIONES_ESTADO, ETIQUETAS_ESTADO, COLORES_ESTADO, ROLES, type Estado } from "@/lib/constants";
 import AccesoDenegado from "@/components/AccesoDenegado";
 import FormularioComentario from "@/components/FormularioComentario";
 import CambiarEstadoIncidencia from "@/components/CambiarEstadoIncidencia";
 import ModalEditarIncidencia from "@/components/ModalEditarIncidencia";
 import UbicacionCategoriaIncidencia from "@/components/UbicacionCategoriaIncidencia";
+import EliminarIncidenciaBoton from "@/components/EliminarIncidenciaBoton";
 
 export default async function DetalleIncidenciaPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -48,8 +49,8 @@ export default async function DetalleIncidenciaPage({ params }: { params: Promis
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-md border border-marca-200 bg-white p-4 shadow-sm">
-        <div className="flex items-start justify-between gap-2">
-          <h2 className="text-xl font-semibold">{incidencia.titulo}</h2>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <h2 className="min-w-0 flex-1 basis-48 break-words text-xl font-semibold">{incidencia.titulo}</h2>
           {puedeEditar && (
             <ModalEditarIncidencia
               idIncidencia={incidencia.idIncidencia}
@@ -68,6 +69,7 @@ export default async function DetalleIncidenciaPage({ params }: { params: Promis
               }}
             />
           )}
+          {actor.rol === ROLES.ADMIN && <EliminarIncidenciaBoton idIncidencia={incidencia.idIncidencia} titulo={incidencia.titulo} />}
         </div>
         <p className="mt-1 text-sm text-gray-500">
           {incidencia.idIncidencia} · Prioridad {incidencia.prioridad}
