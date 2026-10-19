@@ -20,14 +20,15 @@ const admin = { id_usuario: "ADMIN-TEST", email: "admin@example.invalid", rol: "
 const vocal = { id_usuario: "VOCAL-TEST", email: "vocal@example.invalid", rol: "VOCAL", activo: true, ambito_bloques: "B1", ambito_zonas: "PISCINA" };
 const passwordPrueba = "Solo-pruebas-locales-123";
 
-function entornoUsuarios(fila) {
+function entornoUsuarios(fila, anteriores = []) {
   const escrituras = [];
+  const filas = [...anteriores, fila];
   const usuarios = cargar("src/lib/usuarios.ts", {
     "./constants": constantes, "./permissions": permisos, "./password": claves,
     "./sheets": {
-      leerFilasComoObjetos: async () => ({ filas: [{ objeto: fila, numeroFila: 2 }] }),
+      leerFilasComoObjetos: async () => ({ filas: filas.map((objeto, indice) => ({ objeto, numeroFila: indice + 2 })) }),
       obtenerEncabezados: async () => [],
-      actualizarCelda: async (_hoja, _indice, _encabezados, cambios) => { Object.assign(fila, cambios); escrituras.push(cambios); },
+      actualizarCelda: async (_hoja, indice, _encabezados, cambios) => { Object.assign(filas[indice - 2], cambios); escrituras.push(cambios); },
     },
     "./validaciones": { sanearTextoEntrada: (valor) => String(valor || "").trim() },
     "./auditoria": { registrarAuditoria: async () => {} },
@@ -260,4 +261,43 @@ test("limpiar filas conserva cabeceras y usa una sola operación sin desplazar o
   await assert.rejects(() => sheets.eliminarFilas([{ hoja: "Incidencias", numeroFila: 1 }]));
   await sheets.eliminarFilas([]);
   assert.equal(peticiones.length, 1);
+});
+
+test("cambiar contraseña distingue cuentas con el mismo ID y no modifica la otra cuenta", async () => {
+  const otraCuenta = { ...admin, id_usuario: vocal.id_usuario, acceso_password: false, version_sesion: "sesion-google" };
+  const fila = { ...vocal, acceso_password: true, cambio_password_obligatorio: true,
+    password_hash: await claves.crearHashPassword(passwordPrueba), version_sesion: "sesion-vocal" };
+  const { usuarios, escrituras } = entornoUsuarios(fila, [otraCuenta]);
+  const actor = await usuarios.buscarUsuarioPorEmail(vocal.email);
+  await assert.rejects(() => usuarios.cambiarPasswordPropia(actor, "incorrecta", "Nueva-password-local-123"));
+  assert.equal(escrituras.length, 0);
+  await usuarios.cambiarPasswordPropia(actor, passwordPrueba, "Nueva-password-local-123");
+  assert.equal(fila.cambio_password_obligatorio, false);
+  assert.ok(await claves.comprobarPassword("Nueva-password-local-123", fila.password_hash));
+  assert.equal(otraCuenta.password_hash, undefined);
+  assert.equal(otraCuenta.version_sesion, "sesion-google");
+  assert.equal(escrituras.length, 1);
+});
+
+test("resetear distingue correos con el mismo ID y rechaza solicitudes ambiguas", async () => {
+  const otraCuenta = { ...admin, id_usuario: vocal.id_usuario, acceso_password: false, version_sesion: "sesion-google" };
+  const fila = { ...vocal };
+  const { usuarios, escrituras } = entornoUsuarios(fila, [otraCuenta]);
+  await assert.rejects(() => usuarios.resetearPassword(admin, vocal.id_usuario), (error) => error.codigo === "DATOS_INVALIDOS");
+  assert.equal(escrituras.length, 0);
+  const temporal = await usuarios.resetearPassword(admin, vocal.id_usuario, vocal.email);
+  assert.ok(await claves.comprobarPassword(temporal, fila.password_hash));
+  assert.equal(otraCuenta.password_hash, undefined);
+  assert.equal(otraCuenta.version_sesion, "sesion-google");
+});
+
+test("editar una cuenta con ID repetido conserva su propia contraseña", async () => {
+  const otraCuenta = { ...admin, id_usuario: vocal.id_usuario, acceso_password: false };
+  const fila = { ...vocal, acceso_password: true, password_hash: await claves.crearHashPassword(passwordPrueba) };
+  const hash = fila.password_hash;
+  const { usuarios } = entornoUsuarios(fila, [otraCuenta]);
+  await usuarios.guardarUsuario(admin, { email: vocal.email, nombre: "Vocal editado", rol: "VOCAL", accesoPassword: true });
+  assert.equal(fila.password_hash, hash);
+  assert.equal(fila.nombre, "Vocal editado");
+  assert.equal(otraCuenta.password_hash, undefined);
 });

@@ -14,6 +14,7 @@ function tabla(filas, columnas = []) {
 const hojas = {
   Usuarios: tabla([
     { id_usuario: "UADMIN", email: "admin@example.invalid", nombre: "Administrador de prueba", rol: "ADMIN", activo: true, acceso_password: true, password_hash: hash, cambio_password_obligatorio: false, version_sesion: "test-admin" },
+    { id_usuario: "UVOCAL", email: "google@example.invalid", nombre: "Cuenta Google con ID duplicado", rol: "VOCAL", activo: true, acceso_password: false, cambio_password_obligatorio: false, version_sesion: "test-google" },
     { id_usuario: "UVOCAL", email: "vocal@example.invalid", nombre: "Vocal de prueba", rol: "VOCAL", ambito_bloques: "B1", ambito_zonas: "PISCINA", activo: true, acceso_password: true, password_hash: hash, cambio_password_obligatorio: true, version_sesion: "test-vocal" },
   ]),
   Configuracion: tabla([

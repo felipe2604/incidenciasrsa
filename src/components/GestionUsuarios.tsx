@@ -33,7 +33,9 @@ export default function GestionUsuarios({ usuarios }: { usuarios: Usuario[] }) {
     setEnviando(true);
     setMensaje("");
     try {
-      const respuesta = await fetch(`/api/usuarios/${encodeURIComponent(usuario.id_usuario)}/password`, { method: "POST" });
+      const respuesta = await fetch(`/api/usuarios/${encodeURIComponent(usuario.id_usuario)}/password`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: usuario.email }),
+      });
       const resultado = await respuesta.json();
       if (!resultado.ok) { setMensaje(resultado.message || "No se pudo restablecer la contraseña."); return; }
       setCopiada(false);
@@ -140,7 +142,7 @@ export default function GestionUsuarios({ usuarios }: { usuarios: Usuario[] }) {
           </thead>
           <tbody>
             {usuarios.map((u) => (
-              <tr key={u.id_usuario} className="border-b border-marca-50">
+              <tr key={u.email} className="border-b border-marca-50">
                 <td className="whitespace-nowrap px-3 py-2">{u.nombre}</td>
                 <td className="whitespace-nowrap px-3 py-2">{u.email}</td>
                 <td className="whitespace-nowrap px-3 py-2">{u.rol === ROLES.ADMINISTRADOR_FINCAS ? "Administrador de fincas" : u.rol}</td>

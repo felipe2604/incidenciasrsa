@@ -137,7 +137,7 @@ export async function guardarUsuario(actor: Usuario, datos: DatosUsuarioEntrada)
   }
   if (accesoPassword && !datos.password) {
     const filas = await leerFilasComoObjetos(HOJAS.USUARIOS);
-    const hashExistente = filas.filas.find((f) => f.objeto.id_usuario === existente?.id_usuario)?.objeto.password_hash;
+    const hashExistente = filas.filas.find((f) => String(f.objeto.email || "").toLowerCase().trim() === email)?.objeto.password_hash;
     if (!hashExistente) {
       throw new ErrorAplicacion("DATOS_INVALIDOS", "Establezca una contraseña para este usuario.", {
         password: "Introduzca una contraseña de al menos 12 caracteres.",
@@ -188,7 +188,8 @@ export async function cambiarPasswordPropia(actor: Usuario, actual: string, nuev
     throw new ErrorAplicacion("DATOS_INVALIDOS", "La contraseña debe tener entre 12 y 128 caracteres.");
   }
   const datos = await leerFilasComoObjetos(HOJAS.USUARIOS);
-  const fila = datos.filas.find((f) => f.objeto.id_usuario === actor.id_usuario);
+  const fila = datos.filas.find((f) => f.objeto.id_usuario === actor.id_usuario &&
+    String(f.objeto.email || "").toLowerCase().trim() === actor.email.toLowerCase().trim());
   if (!fila || !actor.acceso_password || !(await comprobarPassword(actual, fila.objeto.password_hash))) {
     throw new ErrorAplicacion("DATOS_INVALIDOS", "La contraseña actual no es correcta.");
   }
@@ -204,14 +205,20 @@ export async function cambiarPasswordPropia(actor: Usuario, actual: string, nuev
   await registrarAuditoria("CAMBIAR_PASSWORD", "USUARIO", actor.id_usuario, "Contraseña actualizada", "OK");
 }
 
-export async function resetearPassword(actor: Usuario, idUsuario: string): Promise<string> {
+export async function resetearPassword(actor: Usuario, idUsuario: string, email?: string): Promise<string> {
   verificarPermiso(actor, "USUARIOS_GESTIONAR");
-  if (actor.id_usuario === idUsuario) {
+  const correo = email?.toLowerCase().trim();
+  if (actor.id_usuario === idUsuario && (!correo || correo === actor.email.toLowerCase().trim())) {
     throw new ErrorAplicacion("DATOS_INVALIDOS", "Utilice Mi perfil para cambiar su propia contraseña.");
   }
   const datos = await leerFilasComoObjetos(HOJAS.USUARIOS);
-  const fila = datos.filas.find((f) => f.objeto.id_usuario === idUsuario);
-  if (!fila) throw new ErrorAplicacion("NO_ENCONTRADO", "Usuario no encontrado.");
+  const coincidencias = datos.filas.filter((f) => f.objeto.id_usuario === idUsuario &&
+    (!correo || String(f.objeto.email || "").toLowerCase().trim() === correo));
+  if (coincidencias.length === 0) throw new ErrorAplicacion("NO_ENCONTRADO", "Usuario no encontrado.");
+  if (coincidencias.length !== 1) {
+    throw new ErrorAplicacion("DATOS_INVALIDOS", "El identificador está duplicado. Recargue Usuarios y seleccione de nuevo la cuenta.");
+  }
+  const fila = coincidencias[0];
   const temporal = randomBytes(18).toString("base64url");
   const cambios = {
     password_hash: await crearHashPassword(temporal), acceso_password: true, cambio_password_obligatorio: true,
