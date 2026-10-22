@@ -1,6 +1,7 @@
 import { ESTADOS, ESTADOS_PENDIENTES, ESTADOS_SIN_TRABAJO_PENDIENTE, HOJAS, LIMITES, ROLES, TIPO_UBICACION, TRANSICIONES_ESTADO, type Estado } from "./constants";
 import { actualizarCelda, agregarFila, generarSiguienteId, leerFilasComoObjetos, obtenerEncabezados } from "./sheets";
-import { ErrorAplicacion, incidenciaEnAmbito, listaAmbito, puedeCambiarEstado, tienePermiso, usuarioTieneAmbitoTotal, verificarPermiso } from "./permissions";
+import { ErrorAplicacion, esCreador, esResponsable, incidenciaEnAmbito, listaAmbito, puedeCambiarEstado, tienePermiso, usuarioTieneAmbitoTotal, verificarPermiso } from "./permissions";
+import { resolverResponsable } from "./asignaciones";
 import { sanearTextoEntrada, validarComentario, validarIncidencia, type DatosIncidenciaEntrada } from "./validaciones";
 import { registrarAuditoria } from "./auditoria";
 import type { Incidencia, IncidenciaProyectada, Usuario } from "./types";
@@ -17,11 +18,12 @@ export function estaArchivada(inc: Incidencia, ahora = Date.now()): boolean {
 export function proyectarIncidencia(inc: Incidencia, actor: Usuario): IncidenciaProyectada {
   const esConfidencial = inc.confidencial === true || inc.confidencial === "TRUE";
   const puedeVerConfidencial =
-    actor.rol === ROLES.ADMIN || actor.rol === ROLES.PRESIDENTE || inc.usuario_creador === actor.id_usuario;
+    actor.rol === ROLES.ADMIN || actor.rol === ROLES.PRESIDENTE || esCreador(actor, inc);
   return {
     idIncidencia: inc.id_incidencia,
     fechaCreacion: inc.fecha_creacion,
     usuarioCreador: inc.usuario_creador,
+    usuarioCreadorEmail: inc.usuario_creador_email,
     titulo: inc.titulo,
     descripcion: esConfidencial && !puedeVerConfidencial ? "(Información confidencial)" : inc.descripcion,
     tipoUbicacion: inc.tipo_ubicacion,
@@ -33,6 +35,8 @@ export function proyectarIncidencia(inc: Incidencia, actor: Usuario): Incidencia
     prioridad: inc.prioridad,
     estado: inc.estado,
     responsable: inc.responsable,
+    responsableEmail: inc.responsable_email,
+    responsableNombre: inc.responsable_nombre || inc.responsable_email || inc.responsable,
     fechaPrevistaActuacion: inc.fecha_prevista_actuacion,
     fechaResolucion: inc.fecha_resolucion,
     costeEstimado: inc.coste_estimado,
@@ -104,7 +108,7 @@ function cumpleFiltroRapido(inc: Incidencia, actor: Usuario, filtroRapido: strin
       return abierta && !!inc.fecha_prevista_actuacion && inc.fecha_prevista_actuacion.slice(0, 10) < hoy;
     }
     case "ASIGNADAS_A_MI":
-      return abierta && inc.responsable === actor.id_usuario;
+      return abierta && esResponsable(actor, inc);
     case "FINALIZADAS":
       return inc.estado === ESTADOS.RESUELTA || inc.estado === ESTADOS.CERRADA;
     default:
@@ -155,11 +159,19 @@ export interface DatosIncidenciaNueva extends DatosIncidenciaEntrada {
   fechaPrevistaActuacion?: string;
   proveedor?: string;
   confidencial?: boolean;
+  responsableEmail?: string;
+}
+
+function validarFechaPrevista(fecha?: string): void {
+  if (fecha && (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !Number.isFinite(Date.parse(fecha)) || new Date(fecha).toISOString().slice(0, 10) !== fecha)) {
+    throw new ErrorAplicacion("DATOS_INVALIDOS", "La fecha prevista no es válida.", { fechaPrevistaActuacion: "Indique una fecha válida." });
+  }
 }
 
 export async function crearIncidencia(actor: Usuario, datos: DatosIncidenciaNueva): Promise<string> {
   verificarPermiso(actor, "INCIDENCIAS_CREAR");
   const limpio = validarIncidencia(datos);
+  validarFechaPrevista(datos.fechaPrevistaActuacion);
 
   if (actor.rol === ROLES.VOCAL || actor.rol === ROLES.COORDINADOR) {
     if (
@@ -178,13 +190,15 @@ export async function crearIncidencia(actor: Usuario, datos: DatosIncidenciaNuev
     }
   }
 
+  const responsable = await resolverResponsable(actor, datos.responsableEmail);
   const idNuevo = await generarSiguienteId("INC");
-  const encabezados = await obtenerEncabezados(HOJAS.INCIDENCIAS);
+  const encabezados = await obtenerEncabezados(HOJAS.INCIDENCIAS, ["responsable", "responsable_email", "responsable_nombre", "fecha_asignacion", "usuario_creador_email"]);
   const ahora = new Date().toISOString();
   await agregarFila(HOJAS.INCIDENCIAS, encabezados, {
     id_incidencia: idNuevo,
     fecha_creacion: ahora,
     usuario_creador: actor.id_usuario,
+    usuario_creador_email: actor.email,
     titulo: limpio.titulo,
     descripcion: limpio.descripcion,
     tipo_ubicacion: datos.tipoUbicacion,
@@ -195,7 +209,10 @@ export async function crearIncidencia(actor: Usuario, datos: DatosIncidenciaNuev
     categoria: datos.categoria,
     prioridad: datos.prioridad,
     estado: ESTADOS.REGISTRADA,
-    responsable: "",
+    responsable: responsable.id,
+    responsable_email: responsable.email,
+    responsable_nombre: responsable.nombre,
+    fecha_asignacion: ahora,
     fecha_prevista_actuacion: datos.fechaPrevistaActuacion || "",
     fecha_resolucion: "",
     descripcion_solucion: "",
@@ -214,10 +231,8 @@ export async function crearIncidencia(actor: Usuario, datos: DatosIncidenciaNuev
 
 export type DatosIncidenciaEdicion = DatosIncidenciaNueva;
 
-// Edición de los datos descriptivos de una incidencia ya existente (no toca
-// estado/responsable, que se gestionan con cambiarEstadoIncidencia).
 export async function actualizarIncidencia(actor: Usuario, idIncidencia: string, datos: DatosIncidenciaEdicion): Promise<void> {
-  const { objeto, numeroFila, encabezados } = await buscarFilaIncidencia(idIncidencia);
+  const { objeto, numeroFila, encabezados: encabezadosActuales } = await buscarFilaIncidencia(idIncidencia);
   const inc = objeto as Incidencia;
   if (!incidenciaEnAmbito(actor, inc)) throw new ErrorAplicacion("PERMISO_DENEGADO", "No tiene acceso a esta incidencia.");
 
@@ -226,11 +241,12 @@ export async function actualizarIncidencia(actor: Usuario, idIncidencia: string,
   if (!puedeEditarTodas && !puedeEditarPropioAmbito) {
     throw new ErrorAplicacion("PERMISO_DENEGADO", "No tiene permisos para editar incidencias.");
   }
-  if (!puedeEditarTodas && inc.usuario_creador !== actor.id_usuario) {
+  if (!puedeEditarTodas && !esCreador(actor, inc)) {
     throw new ErrorAplicacion("PERMISO_DENEGADO", "Solo puede editar las incidencias que usted creó.");
   }
 
   const limpio = validarIncidencia(datos);
+  validarFechaPrevista(datos.fechaPrevistaActuacion);
 
   if (actor.rol === ROLES.VOCAL || actor.rol === ROLES.COORDINADOR) {
     if (
@@ -250,7 +266,12 @@ export async function actualizarIncidencia(actor: Usuario, idIncidencia: string,
   }
 
   const ahora = new Date().toISOString();
+  const responsable = datos.responsableEmail !== undefined ? await resolverResponsable(actor, datos.responsableEmail) : null;
+  const cambiaResponsable = responsable && responsable.email !== inc.responsable_email;
+  const encabezados = responsable ? await obtenerEncabezados(HOJAS.INCIDENCIAS, ["responsable", "responsable_email", "responsable_nombre", "fecha_asignacion"]) : encabezadosActuales;
   await actualizarCelda(HOJAS.INCIDENCIAS, numeroFila, encabezados, {
+    ...(responsable ? { responsable: responsable.id, responsable_email: responsable.email, responsable_nombre: responsable.nombre,
+      fecha_asignacion: cambiaResponsable ? ahora : inc.fecha_asignacion || ahora } : {}),
     titulo: limpio.titulo,
     descripcion: limpio.descripcion,
     tipo_ubicacion: datos.tipoUbicacion,
@@ -262,7 +283,7 @@ export async function actualizarIncidencia(actor: Usuario, idIncidencia: string,
     prioridad: datos.prioridad,
     coste_estimado: datos.costeEstimado || "",
     proveedor: sanearTextoEntrada(datos.proveedor, 150),
-    fecha_prevista_actuacion: datos.fechaPrevistaActuacion || "",
+    fecha_prevista_actuacion: datos.fechaPrevistaActuacion ?? inc.fecha_prevista_actuacion ?? "",
     confidencial: !!datos.confidencial,
     fecha_ultima_modificacion: ahora,
     usuario_ultima_modificacion: actor.id_usuario,
@@ -274,7 +295,7 @@ export async function cambiarEstadoIncidencia(actor: Usuario, idIncidencia: stri
   const { objeto, numeroFila } = await buscarFilaIncidencia(idIncidencia);
   const inc = objeto as Incidencia;
   if (!incidenciaEnAmbito(actor, inc)) throw new ErrorAplicacion("PERMISO_DENEGADO", "No tiene acceso a esta incidencia.");
-  if (!puedeCambiarEstado(actor, inc.usuario_creador)) {
+  if (!puedeCambiarEstado(actor, inc.usuario_creador, inc.usuario_creador_email)) {
     throw new ErrorAplicacion("PERMISO_DENEGADO", "No tiene permisos para cambiar el estado de esta incidencia.");
   }
   const permitidas = TRANSICIONES_ESTADO[inc.estado as Estado] || [];

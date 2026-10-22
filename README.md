@@ -89,8 +89,8 @@ Otros puntos relevantes:
 | Perfil | Visibilidad | Operaciones |
 | --- | --- | --- |
 | ADMIN | Todo | Gestión completa, incluidos usuarios y catálogos. |
-| PRESIDENTE | Todas las incidencias, contenido confidencial e informes | Crear y editar cualquier incidencia, cambiar estados, comentar y adjuntar. Sin gestión de usuarios ni catálogos. |
-| VOCAL | Bloques y zonas asignados; descripción confidencial solo si es propia | Crear, editar las propias, comentar y adjuntar. Sin cambios de estado ni informes. |
+| PRESIDENTE | Todas las incidencias, contenido confidencial, informes y contadores por usuario | Crear y editar cualquier incidencia, cambiar estados, comentar y adjuntar. Sin gestión de usuarios ni catálogos. |
+| VOCAL | Bloques y zonas de su ámbito e incidencias asignadas personalmente; descripción confidencial solo si es propia | Crear, editar las propias, comentar y adjuntar. Sin cambios de estado ni informes. |
 | COORDINADOR | Igual que VOCAL | Igual que VOCAL. |
 | ADMINISTRADOR_FINCAS | Todas las incidencias e informes; descripción confidencial solo si es propia | Crear, editar y cambiar estado solo de las propias; comentar y adjuntar también en las ajenas. Sin gestión de usuarios ni catálogos. |
 
@@ -121,6 +121,33 @@ rate limiting en Vercel para `/api/auth/callback/credentials`.
 
 La cuenta de Domingo GS es `administracion@inmoabades.es` (sin tilde), con el perfil
 `ADMINISTRADOR_FINCAS`. No necesita una cuenta Google para este acceso.
+
+### Asignación Y Notificaciones
+
+Cualquier usuario puede crear una incidencia asignada a una cuenta activa de la
+aplicación; por defecto, el responsable es quien la crea. La edición permite
+reasignarla a quienes ya tenían permiso para editar esa incidencia. La persona
+asignada puede visualizarla aunque esté fuera de su bloque o zona, pero no obtiene
+permisos de edición, cierre, borrado ni acceso a descripciones confidenciales ajenas.
+
+Se guardan correo de creador y responsable además de los IDs, junto al nombre y
+fecha de asignación. Si un ID histórico está duplicado y no consta correo, no se
+utiliza para conceder acceso ni para atribuir contadores. No se renumeran IDs ni
+se reasignan registros históricos automáticamente.
+
+La campana de la cabecera muestra asignaciones, vencimientos en los próximos dos
+días naturales y plazos vencidos, calculados en horario de Madrid a partir de la
+fecha prevista de resolución. Se consulta al entrar, al recuperar el foco y cada
+dos minutos. Un aviso de bienvenida recuerda los pendientes una vez por sesión.
+Marcar leídas guarda la lectura por correo en Notificaciones; una reasignación
+genera un nuevo aviso. Las cerradas, resueltas, canceladas y archivadas no generan
+avisos pendientes. No se envían correos ni notificaciones fuera de la aplicación.
+
+ADMIN y PRESIDENTE ven en Administración los contadores por usuario de creadas,
+asignadas y asignadas abiertas. Los totales incluyen archivadas; las abiertas no
+incluyen estados finales ni archivadas. Los registros históricos que no pueden
+atribuirse con certeza se advierten y no se suman a una cuenta arbitraria. El
+PRESIDENTE solo obtiene consulta de estos contadores, no gestión administrativa.
 
 ### Filtros, Archivado Y Aspecto
 

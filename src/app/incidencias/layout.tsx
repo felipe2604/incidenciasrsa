@@ -2,10 +2,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { obtenerUsuarioActual } from "@/lib/sesion";
-import { ErrorAplicacion } from "@/lib/permissions";
+import { ErrorAplicacion, tienePermiso } from "@/lib/permissions";
 import CerrarSesionBoton from "@/components/CerrarSesionBoton";
 import SelectorAspecto from "@/components/SelectorAspecto";
 import NavegacionModerna from "@/components/NavegacionModerna";
+import CampanaNotificaciones from "@/components/CampanaNotificaciones";
 
 export default async function IncidenciasLayout({ children }: { children: React.ReactNode }) {
   let actor;
@@ -20,10 +21,11 @@ export default async function IncidenciasLayout({ children }: { children: React.
   const rol = actor.rol;
   const esAdmin = rol === "ADMIN";
   const puedeVerInformes = esAdmin || rol === "PRESIDENTE" || rol === "ADMINISTRADOR_FINCAS";
+  const puedeVerAdministracion = tienePermiso(actor, "USUARIOS_ESTADISTICAS_VER");
 
   return (
     <div className="app-shell mx-auto max-w-6xl p-3 sm:p-6">
-      <NavegacionModerna informes={puedeVerInformes} administracion={esAdmin} />
+      <NavegacionModerna informes={puedeVerInformes} administracion={puedeVerAdministracion} />
       <header className="app-header mb-4 border-b border-marca-200 pb-3">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <Link href="/incidencias/panel" className="flex items-center gap-3">
@@ -42,6 +44,7 @@ export default async function IncidenciasLayout({ children }: { children: React.
           </Link>
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <SelectorAspecto />
+            <CampanaNotificaciones key={actor.email} correo={actor.email} />
             <Link href="/incidencias/perfil" className="hidden font-medium hover:underline sm:inline">{actor.nombre || actor.email}</Link>
             <CerrarSesionBoton />
           </div>
@@ -59,7 +62,7 @@ export default async function IncidenciasLayout({ children }: { children: React.
               Informes
             </Link>
           )}
-          {esAdmin && (
+          {puedeVerAdministracion && (
             <Link href="/incidencias/administracion" className="whitespace-nowrap rounded-md px-2 py-1 hover:bg-marca-100/50">
               Administración
             </Link>

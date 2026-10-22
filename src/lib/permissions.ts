@@ -18,6 +18,7 @@ export const PERMISOS_POR_ROL: Record<string, string[]> = {
     "INFORMES_VER",
   ],
   PRESIDENTE: [
+    "USUARIOS_ESTADISTICAS_VER",
     "INCIDENCIAS_VER_TODAS",
     "INCIDENCIAS_CREAR",
     "INCIDENCIAS_EDITAR",
@@ -70,9 +71,19 @@ export function verificarPermiso(usuario: Usuario, permiso: string): void {
   }
 }
 
-export function puedeCambiarEstado(usuario: Usuario, usuarioCreador: string): boolean {
+export function esCreador(usuario: Usuario, incidencia: Pick<Incidencia, "usuario_creador" | "usuario_creador_email">): boolean {
+  return incidencia.usuario_creador_email ? incidencia.usuario_creador_email.toLowerCase().trim() === usuario.email.toLowerCase().trim() :
+    usuario.id_unico !== false && incidencia.usuario_creador === usuario.id_usuario;
+}
+
+export function esResponsable(usuario: Usuario, incidencia: Pick<Incidencia, "responsable" | "responsable_email">): boolean {
+  return incidencia.responsable_email ? incidencia.responsable_email.toLowerCase().trim() === usuario.email.toLowerCase().trim() :
+    !!incidencia.responsable && usuario.id_unico !== false && incidencia.responsable === usuario.id_usuario;
+}
+
+export function puedeCambiarEstado(usuario: Usuario, usuarioCreador: string, correoCreador?: string): boolean {
   return tienePermiso(usuario, "INCIDENCIAS_CAMBIAR_ESTADO") ||
-    (tienePermiso(usuario, "INCIDENCIAS_CAMBIAR_ESTADO_PROPIAS") && usuario.id_usuario === usuarioCreador);
+    (tienePermiso(usuario, "INCIDENCIAS_CAMBIAR_ESTADO_PROPIAS") && esCreador(usuario, { usuario_creador: usuarioCreador, usuario_creador_email: correoCreador }));
 }
 
 export function listaAmbito(valor: string | undefined | null): string[] {
@@ -92,6 +103,7 @@ export function usuarioTieneAmbitoTotal(usuario: Usuario, tipo: "BLOQUE" | "ZONA
 // nunca se confía en que el cliente ya filtró correctamente.
 export function incidenciaEnAmbito(usuario: Usuario, incidencia: Incidencia): boolean {
   if (tienePermiso(usuario, "INCIDENCIAS_VER_TODAS")) return true;
+  if (esResponsable(usuario, incidencia)) return true;
   if (incidencia.tipo_ubicacion === TIPO_UBICACION.BLOQUE) {
     if (usuarioTieneAmbitoTotal(usuario, "BLOQUE")) return true;
     return listaAmbito(usuario.ambito_bloques).includes(incidencia.bloque);

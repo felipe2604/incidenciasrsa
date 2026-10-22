@@ -1,7 +1,7 @@
 import { obtenerUsuarioActual } from "@/lib/sesion";
 import { listarComentarios, obtenerIncidenciaDetalle } from "@/lib/incidencias";
 import { listarArchivosPorIncidencia } from "@/lib/archivos";
-import { puedeCambiarEstado, tienePermiso } from "@/lib/permissions";
+import { esCreador, puedeCambiarEstado, tienePermiso } from "@/lib/permissions";
 import { obtenerCatalogos } from "@/lib/catalogos";
 import { TRANSICIONES_ESTADO, ETIQUETAS_ESTADO, COLORES_ESTADO, ROLES, type Estado } from "@/lib/constants";
 import AccesoDenegado from "@/components/AccesoDenegado";
@@ -40,11 +40,11 @@ export default async function DetalleIncidenciaPage({ params }: { params: Promis
     tipoMime: a.tipo_mime as string,
   }));
 
-  const puedeCambiarEstadoActual = puedeCambiarEstado(actor, incidencia.usuarioCreador);
+  const puedeCambiarEstadoActual = puedeCambiarEstado(actor, incidencia.usuarioCreador, incidencia.usuarioCreadorEmail);
   const transicionesPosibles = TRANSICIONES_ESTADO[incidencia.estado as Estado] || [];
   const puedeEditar =
     tienePermiso(actor, "INCIDENCIAS_EDITAR") ||
-    (tienePermiso(actor, "INCIDENCIAS_EDITAR_PROPIO_AMBITO") && incidencia.usuarioCreador === actor.id_usuario);
+    (tienePermiso(actor, "INCIDENCIAS_EDITAR_PROPIO_AMBITO") && esCreador(actor, { usuario_creador: incidencia.usuarioCreador, usuario_creador_email: incidencia.usuarioCreadorEmail }));
 
   return (
     <div className="flex flex-col gap-4">
@@ -66,6 +66,9 @@ export default async function DetalleIncidenciaPage({ params }: { params: Promis
                 categoria: incidencia.categoria,
                 prioridad: incidencia.prioridad,
                 confidencial: incidencia.confidencial,
+                responsableEmail: incidencia.responsableEmail,
+                responsableNombre: incidencia.responsableNombre,
+                fechaPrevistaActuacion: incidencia.fechaPrevistaActuacion,
               }}
             />
           )}
@@ -75,6 +78,10 @@ export default async function DetalleIncidenciaPage({ params }: { params: Promis
           {incidencia.idIncidencia} · Prioridad {incidencia.prioridad}
         </p>
         <UbicacionCategoriaIncidencia incidencia={incidencia} catalogos={catalogos} />
+        <dl className="mb-3 flex flex-wrap gap-x-8 gap-y-3 text-sm">
+          <div><dt className="text-xs text-gray-500">Responsable</dt><dd className="break-words font-medium">{incidencia.responsableNombre || "Sin asignar"}</dd></div>
+          {incidencia.fechaPrevistaActuacion && <div><dt className="text-xs text-gray-500">Fecha prevista de resolución</dt><dd className="font-medium"><time dateTime={incidencia.fechaPrevistaActuacion}>{new Date(incidencia.fechaPrevistaActuacion).toLocaleDateString("es-ES", { timeZone: "Europe/Madrid" })}</time></dd></div>}
+        </dl>
         <span
           className={`mt-2 inline-block rounded-full px-3 py-1 text-sm font-medium ${
             COLORES_ESTADO[incidencia.estado as Estado] || "bg-marca-200"

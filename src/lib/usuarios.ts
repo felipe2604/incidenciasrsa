@@ -7,7 +7,7 @@ import { registrarAuditoria } from "./auditoria";
 import { comprobarPassword, crearHashPassword } from "./password";
 import type { Usuario } from "./types";
 
-function normalizarUsuario(o: FilaCruda, numeroFila: number): Usuario {
+function normalizarUsuario(o: FilaCruda, numeroFila: number, idUnico: boolean): Usuario {
   const accesoPassword = o.acceso_password === undefined || o.acceso_password === "" ? !!o.password_hash :
     o.acceso_password === true || o.acceso_password === "TRUE";
   return {
@@ -23,6 +23,7 @@ function normalizarUsuario(o: FilaCruda, numeroFila: number): Usuario {
       !!o.password_hash : o.cambio_password_obligatorio === true || o.cambio_password_obligatorio === "TRUE"),
     version_sesion: String(o.version_sesion || ""),
     password_expira: String(o.password_expira || ""),
+    id_unico: idUnico,
     _fila: numeroFila,
   };
 }
@@ -34,7 +35,7 @@ export async function buscarUsuarioPorEmail(email: string): Promise<Usuario | nu
   const datos = await leerFilasComoObjetos(HOJAS.USUARIOS);
   for (const f of datos.filas) {
     if (String(f.objeto.email || "").toLowerCase().trim() === normalizado) {
-      return normalizarUsuario(f.objeto, f.numeroFila);
+      return normalizarUsuario(f.objeto, f.numeroFila, !!f.objeto.id_usuario && datos.filas.filter((fila) => fila.objeto.id_usuario === f.objeto.id_usuario).length === 1);
     }
   }
   return null;
@@ -57,7 +58,7 @@ async function comprobarCredenciales(email: string, password: string): Promise<U
   if (!email || email.length > 200 || !password || password.length > 128) return null;
   const datos = await leerFilasComoObjetos(HOJAS.USUARIOS);
   const fila = datos.filas.find((f) => String(f.objeto.email || "").toLowerCase().trim() === email.toLowerCase().trim());
-  const usuario = fila ? normalizarUsuario(fila.objeto, fila.numeroFila) : null;
+  const usuario = fila ? normalizarUsuario(fila.objeto, fila.numeroFila, !!fila.objeto.id_usuario && datos.filas.filter((f) => f.objeto.id_usuario === fila.objeto.id_usuario).length === 1) : null;
   if (!fila || !usuario?.activo || !usuario.acceso_password ||
       (usuario.password_expira && Date.parse(usuario.password_expira) <= Date.now())) {
     await comprobarPassword(password, undefined);
@@ -85,7 +86,7 @@ export async function listarUsuarios(actor: Usuario): Promise<Usuario[]> {
   verificarPermiso(actor, "USUARIOS_GESTIONAR");
   const datos = await leerFilasComoObjetos(HOJAS.USUARIOS);
   return datos.filas
-    .map((f) => normalizarUsuario(f.objeto, f.numeroFila))
+    .map((f) => normalizarUsuario(f.objeto, f.numeroFila, !!f.objeto.id_usuario && datos.filas.filter((fila) => fila.objeto.id_usuario === f.objeto.id_usuario).length === 1))
     .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre)));
 }
 

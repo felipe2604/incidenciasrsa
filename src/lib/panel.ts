@@ -1,6 +1,6 @@
 import { ESTADOS, ESTADOS_PENDIENTES, ESTADOS_SIN_TRABAJO_PENDIENTE, HOJAS, TIPO_UBICACION, type Estado } from "./constants";
 import { leerFilasComoObjetos } from "./sheets";
-import { incidenciaEnAmbito } from "./permissions";
+import { esResponsable, incidenciaEnAmbito } from "./permissions";
 import { estaArchivada } from "./incidencias";
 import type { Incidencia, Usuario } from "./types";
 
@@ -68,7 +68,7 @@ export async function obtenerDatosPanel(actor: Usuario): Promise<DatosPanel> {
     urgentes: abiertas.filter((inc) => inc.prioridad === "URGENTE").length,
     pendientes: abiertas.filter((inc) => ESTADOS_PENDIENTES.includes(inc.estado)).length,
     vencidas: abiertas.filter((inc) => inc.fecha_prevista_actuacion && inc.fecha_prevista_actuacion.slice(0, 10) < hoy).length,
-    asignadasAMi: abiertas.filter((inc) => inc.responsable === actor.id_usuario).length,
+    asignadasAMi: abiertas.filter((inc) => esResponsable(actor, inc)).length,
     finalizadas: incidencias.filter((inc) => inc.estado === ESTADOS.RESUELTA || inc.estado === ESTADOS.CERRADA).length,
     porEstado,
     porZona,

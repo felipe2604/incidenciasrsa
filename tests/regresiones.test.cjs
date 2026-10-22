@@ -103,17 +103,152 @@ test("las operaciones rechazan sesión caducada, revocada y cambio pendiente", a
   await assert.rejects(() => sesion.obtenerUsuarioActual(), (error) => error.codigo === "ACCESO_NO_AUTORIZADO");
 });
 
-function entornoIncidencias(filas) {
+function entornoIncidencias(filas, usuarios = [admin, vocal]) {
+  const sheets = {
+    leerFilasComoObjetos: async (hoja) => ({ encabezados: [], filas: (hoja === "Usuarios" ? usuarios : filas).map((objeto, indice) => ({ objeto, numeroFila: indice + 2 })) }),
+    obtenerEncabezados: async () => [],
+    actualizarCelda: async (_hoja, indice, _encabezados, cambios) => Object.assign(filas[indice - 2], cambios),
+    generarSiguienteId: async () => `TEST-NUEVA-${filas.length + 1}`,
+    agregarFila: async (_hoja, _encabezados, objeto) => filas.push(objeto),
+  };
+  const validaciones = cargar("src/lib/validaciones.ts", { "./constants": constantes, "./permissions": permisos });
+  const asignaciones = cargar("src/lib/asignaciones.ts", { "./constants": constantes, "./permissions": permisos, "./sheets": sheets });
   return cargar("src/lib/incidencias.ts", {
-    "./constants": constantes, "./permissions": permisos, "./validaciones": {},
+    "./constants": constantes, "./permissions": permisos, "./validaciones": validaciones, "./asignaciones": asignaciones,
     "./auditoria": { registrarAuditoria: async () => {} },
-    "./sheets": {
-      leerFilasComoObjetos: async () => ({ encabezados: [], filas: filas.map((objeto, indice) => ({ objeto, numeroFila: indice + 2 })) }),
-      obtenerEncabezados: async () => [],
-      actualizarCelda: async (_hoja, indice, _encabezados, cambios) => Object.assign(filas[indice - 2], cambios),
-    },
+    "./sheets": sheets,
   });
 }
+
+test("crear asigna al creador por defecto y permite elegir cualquier cuenta activa", async () => {
+  const filas = [];
+  const lib = entornoIncidencias(filas);
+  const datos = { titulo: "Nueva incidencia", descripcion: "Descripción", tipoUbicacion: "BLOQUE", bloque: "B1", planta: "P1", categoria: "FONT", prioridad: "MEDIA" };
+  await lib.crearIncidencia(vocal, datos);
+  assert.equal(filas[0].responsable_email, vocal.email);
+  assert.equal(filas[0].usuario_creador_email, vocal.email);
+  await lib.crearIncidencia(vocal, { ...datos, responsableEmail: admin.email, fechaPrevistaActuacion: "2026-12-01" });
+  assert.equal(filas[1].responsable_email, admin.email);
+  assert.equal(filas[1].responsable, admin.id_usuario);
+  await assert.rejects(() => lib.crearIncidencia(vocal, { ...datos, responsableEmail: "inexistente@example.invalid" }));
+  await assert.rejects(() => lib.crearIncidencia(vocal, { ...datos, fechaPrevistaActuacion: "2026-02-30" }));
+});
+
+test("asignar permite leer fuera de ámbito sin dar edición ni revelar descripciones confidenciales", async () => {
+  const fila = { id_incidencia: "ASIGNADA", usuario_creador: admin.id_usuario, usuario_creador_email: admin.email, responsable: vocal.id_usuario,
+    responsable_email: vocal.email, tipo_ubicacion: "BLOQUE", bloque: "B2", estado: "REGISTRADA", titulo: "Asignada", confidencial: true, descripcion: "Privada" };
+  const lib = entornoIncidencias([fila]);
+  assert.equal((await lib.listarIncidencias(vocal)).length, 1);
+  assert.equal((await lib.obtenerIncidenciaDetalle(vocal, "ASIGNADA")).descripcion, "(Información confidencial)");
+  await assert.rejects(() => lib.actualizarIncidencia(vocal, "ASIGNADA", {}), (error) => error.codigo === "PERMISO_DENEGADO");
+  await assert.rejects(() => lib.cambiarEstadoIncidencia(vocal, "ASIGNADA", "ASIGNADA"), (error) => error.codigo === "PERMISO_DENEGADO");
+  const otra = { ...vocal, email: "otra@example.invalid", id_unico: false };
+  assert.equal((await lib.listarIncidencias(otra)).length, 0);
+});
+
+function entornoNotificaciones(incidencias, registros = []) {
+  const sheets = {
+    leerFilasComoObjetos: async (hoja) => ({ filas: (hoja === "Incidencias" ? incidencias : registros).map((objeto) => ({ objeto })) }),
+    obtenerEncabezados: async () => [],
+    agregarFila: async (_hoja, _headers, objeto) => registros.push(objeto),
+  };
+  return cargar("src/lib/notificaciones.ts", { "./constants": constantes, "./permissions": permisos, "./incidencias": entornoIncidencias([]), "./sheets": sheets });
+}
+
+test("avisos propios de asignación, próximos dos días y vencidos excluyen cerradas y otras personas", () => {
+  const filas = [
+    { id_incidencia: "PROXIMA", responsable: vocal.id_usuario, responsable_email: vocal.email, titulo: "Próxima", estado: "EN_CURSO", fecha_creacion: "2026-10-01", fecha_prevista_actuacion: "2026-10-24" },
+    { id_incidencia: "VENCIDA", responsable_email: vocal.email, titulo: "Vencida", estado: "ASIGNADA", fecha_creacion: "2026-10-01", fecha_prevista_actuacion: "2026-10-21" },
+    { id_incidencia: "CERRADA", responsable_email: vocal.email, estado: "CERRADA", fecha_prevista_actuacion: "2026-10-21" },
+    { id_incidencia: "OTRA", responsable: vocal.id_usuario, responsable_email: "otra@example.invalid", estado: "EN_CURSO", fecha_prevista_actuacion: "2026-10-21" },
+  ];
+  const lib = entornoNotificaciones(filas);
+  const avisos = lib.construirNotificaciones(vocal, filas, new Set(), new Date("2026-10-22T10:00:00Z"));
+  assert.equal(avisos.length, 4);
+  assert.equal(avisos.filter((aviso) => aviso.tipo === "ASIGNACION").length, 2);
+  assert.equal(avisos.filter((aviso) => aviso.tipo === "PROXIMA").length, 1);
+  assert.equal(avisos.filter((aviso) => aviso.tipo === "VENCIDA").length, 1);
+  assert.equal(avisos[0].tipo, "VENCIDA");
+});
+
+test("lectura de notificaciones es privada, persistente e idempotente", async () => {
+  const registros = [];
+  const filas = [{ id_incidencia: "ASIGNADA", responsable_email: vocal.email, titulo: "Asignada", estado: "REGISTRADA", fecha_creacion: "2026-10-01" }];
+  const lib = entornoNotificaciones(filas, registros);
+  const inicial = await lib.obtenerNotificaciones(vocal);
+  await assert.rejects(() => lib.marcarNotificacionesLeidas(admin, [inicial[0].id]), (error) => error.codigo === "PERMISO_DENEGADO");
+  assert.equal(registros.length, 0);
+  await lib.marcarNotificacionesLeidas(vocal, [inicial[0].id]);
+  assert.equal((await lib.obtenerNotificaciones(vocal))[0].leida, true);
+  await lib.marcarNotificacionesLeidas(vocal, [inicial[0].id]);
+  assert.equal(registros.length, 1);
+  filas[0].fecha_asignacion = "2026-10-22T10:00:00Z";
+  assert.equal((await lib.obtenerNotificaciones(vocal))[0].leida, false);
+});
+
+test("contadores distinguen IDs duplicados y solo ADMIN/PRESIDENTE pueden consultarlos", async () => {
+  let lecturas = 0;
+  const usuarios = [{ ...vocal, nombre: "Vocal" }, { ...admin, id_usuario: vocal.id_usuario, nombre: "Administrador" }];
+  const filas = [
+    { id_incidencia: "NUEVA", usuario_creador: vocal.id_usuario, usuario_creador_email: vocal.email, responsable: vocal.id_usuario, responsable_email: admin.email, estado: "EN_CURSO" },
+    { id_incidencia: "CERRADA", usuario_creador_email: vocal.email, responsable_email: admin.email, estado: "CERRADA" },
+    { id_incidencia: "HISTORICA", usuario_creador: vocal.id_usuario, responsable: vocal.id_usuario, estado: "REGISTRADA" },
+  ];
+  const lib = cargar("src/lib/estadisticasUsuarios.ts", { "./constants": constantes, "./permissions": permisos, "./incidencias": entornoIncidencias([]),
+    "./sheets": { leerFilasComoObjetos: async (hoja) => { lecturas++; return { filas: (hoja === "Usuarios" ? usuarios : filas).map((objeto) => ({ objeto })) }; } } });
+  await assert.rejects(() => lib.obtenerEstadisticasUsuarios(vocal), (error) => error.codigo === "PERMISO_DENEGADO");
+  await assert.rejects(() => lib.obtenerEstadisticasUsuarios({ ...admin, rol: "ADMINISTRADOR_FINCAS" }), (error) => error.codigo === "PERMISO_DENEGADO");
+  assert.equal(lecturas, 0);
+  for (const rol of ["ADMIN", "PRESIDENTE"]) {
+    const datos = await lib.obtenerEstadisticasUsuarios({ ...admin, rol });
+    assert.equal(datos.usuarios.find((usuario) => usuario.email === vocal.email).creadas, 2);
+    const asignado = datos.usuarios.find((usuario) => usuario.email === admin.email);
+    assert.equal(asignado.asignadas, 2);
+    assert.equal(asignado.abiertas, 1);
+    assert.equal(datos.sinIdentificar, 1);
+  }
+  assert.equal(permisos.tienePermiso({ ...admin, rol: "PRESIDENTE" }, "USUARIOS_GESTIONAR"), false);
+});
+
+test("reasignar actualiza la lectura y no devuelve una incidencia fuera de ámbito al responsable anterior", async () => {
+  const fila = { id_incidencia: "REASIGNADA", usuario_creador: admin.id_usuario, usuario_creador_email: admin.email, responsable_email: vocal.email,
+    responsable: vocal.id_usuario, fecha_asignacion: "2026-01-01", tipo_ubicacion: "BLOQUE", bloque: "B2", planta: "P1", estado: "ASIGNADA", titulo: "Revisión" };
+  const lib = entornoIncidencias([fila]);
+  assert.equal((await lib.listarIncidencias(vocal)).length, 1);
+  await lib.actualizarIncidencia(admin, "REASIGNADA", { titulo: "Revisión", descripcion: "Revisar acceso", tipoUbicacion: "BLOQUE", bloque: "B2", planta: "P1", categoria: "FONT", prioridad: "MEDIA", responsableEmail: admin.email });
+  assert.equal(fila.responsable_email, admin.email);
+  assert.notEqual(fila.fecha_asignacion, "2026-01-01");
+  assert.equal((await lib.listarIncidencias(vocal)).length, 0);
+});
+
+test("el directorio de responsables solo devuelve nombres y correos de cuentas activas", async () => {
+  const filas = [{ ...vocal, nombre: "Vocal", password_hash: "no-exponer", version_sesion: "no-exponer" }, { ...admin, activo: false }];
+  const lib = cargar("src/lib/asignaciones.ts", { "./constants": constantes, "./permissions": permisos,
+    "./sheets": { leerFilasComoObjetos: async () => ({ filas: filas.map((objeto) => ({ objeto })) }) } });
+  const usuarios = await lib.listarUsuariosAsignables(vocal);
+  assert.equal(usuarios.length, 1);
+  assert.equal(Object.keys(usuarios[0]).sort().join(","), "email,nombre");
+  await assert.rejects(() => lib.resolverResponsable(vocal, admin.email));
+});
+
+test("los plazos usan el día de Madrid y omiten fechas históricas inválidas", () => {
+  const filas = [
+    { id_incidencia: "MANANA", responsable_email: vocal.email, estado: "EN_CURSO", fecha_prevista_actuacion: "2026-10-24" },
+    { id_incidencia: "INVALIDA", responsable_email: vocal.email, estado: "EN_CURSO", fecha_prevista_actuacion: "2026-02-30" },
+  ];
+  const lib = entornoNotificaciones(filas);
+  const avisos = lib.construirNotificaciones(vocal, filas, new Set(), new Date("2026-10-22T23:30:00Z"));
+  assert.equal(avisos.filter((aviso) => aviso.tipo === "PROXIMA")[0].detalle, "El plazo de resolución vence en 1 día.");
+  assert.equal(avisos.filter((aviso) => aviso.idIncidencia === "INVALIDA").length, 1);
+});
+
+test("IDs históricos repetidos no conceden propiedad ni asignación sin correo", () => {
+  const actor = { ...vocal, id_unico: false };
+  assert.equal(permisos.esResponsable(actor, { responsable: vocal.id_usuario }), false);
+  assert.equal(permisos.esCreador(actor, { usuario_creador: vocal.id_usuario }), false);
+  assert.equal(permisos.esResponsable(actor, { responsable: vocal.id_usuario, responsable_email: vocal.email }), true);
+  assert.equal(permisos.esCreador(actor, { usuario_creador: vocal.id_usuario, usuario_creador_email: vocal.email }), true);
+});
 
 const base = { id_incidencia: "TEST-1", usuario_creador: vocal.id_usuario, tipo_ubicacion: "BLOQUE", bloque: "B1", estado: "EN_CURSO", fecha_creacion: "2026-01-10T23:59:59Z", fecha_ultima_modificacion: "2026-02-10T10:00:00Z", titulo: "Incidencia" };
 

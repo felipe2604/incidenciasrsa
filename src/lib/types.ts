@@ -12,6 +12,7 @@ export interface Usuario {
   cambio_password_obligatorio?: boolean;
   version_sesion?: string;
   password_expira?: string;
+  id_unico?: boolean;
   _fila: number;
 }
 
@@ -19,6 +20,7 @@ export interface Incidencia {
   id_incidencia: string;
   fecha_creacion: string;
   usuario_creador: string;
+  usuario_creador_email?: string;
   titulo: string;
   descripcion: string;
   tipo_ubicacion: TipoUbicacion;
@@ -30,6 +32,9 @@ export interface Incidencia {
   prioridad: Prioridad;
   estado: Estado;
   responsable: string;
+  responsable_email?: string;
+  responsable_nombre?: string;
+  fecha_asignacion?: string;
   fecha_prevista_actuacion: string;
   fecha_resolucion: string;
   fecha_estado_final?: string;
@@ -70,6 +75,7 @@ export interface IncidenciaProyectada {
   idIncidencia: string;
   fechaCreacion: string;
   usuarioCreador: string;
+  usuarioCreadorEmail?: string;
   titulo: string;
   descripcion: string;
   tipoUbicacion: TipoUbicacion;
@@ -81,6 +87,8 @@ export interface IncidenciaProyectada {
   prioridad: Prioridad;
   estado: Estado;
   responsable: string;
+  responsableEmail?: string;
+  responsableNombre?: string;
   fechaPrevistaActuacion: string;
   fechaResolucion: string;
   costeEstimado: string | number;

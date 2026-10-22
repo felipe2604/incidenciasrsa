@@ -27,6 +27,7 @@ export const esquemaNuevaIncidencia = z.object({
   costeEstimado: z.union([z.string(), z.number()]).nullish().transform((v) => v ?? undefined),
   proveedor: textoOpcional(300),
   fechaPrevistaActuacion: textoOpcional(50),
+  responsableEmail: z.union([z.string().email().max(200), z.literal("")]).optional(),
   confidencial: z.boolean().optional(),
 });
 

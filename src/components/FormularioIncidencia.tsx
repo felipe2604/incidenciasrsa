@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { comprimirImagen } from "@/lib/compresionImagen";
 import { PRIORIDADES, type OpcionCatalogo } from "@/lib/constants";
@@ -15,6 +15,9 @@ export interface ValoresIncidencia {
   categoria: string;
   prioridad: string;
   confidencial: boolean;
+  responsableEmail?: string;
+  responsableNombre?: string;
+  fechaPrevistaActuacion?: string;
 }
 
 interface CatalogosFormulario {
@@ -39,6 +42,21 @@ export default function FormularioIncidencia({ catalogos, onExito, onCambio, idI
   const [enviando, setEnviando] = useState(false);
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [mensaje, setMensaje] = useState("");
+  const [usuarios, setUsuarios] = useState<{ email: string; nombre: string }[]>([]);
+  const [errorUsuarios, setErrorUsuarios] = useState("");
+  const [responsable, setResponsable] = useState(valoresIniciales?.responsableEmail || "");
+
+  useEffect(() => {
+    const controlador = new AbortController();
+    fetch("/api/usuarios/asignables", { signal: controlador.signal })
+      .then(async (respuesta) => {
+        const resultado = await respuesta.json();
+        if (!respuesta.ok || !resultado.ok) throw new Error("No se pudieron cargar los responsables.");
+        setUsuarios(resultado.data);
+      })
+      .catch((error) => { if (error.name !== "AbortError") setErrorUsuarios("No se pudieron cargar los responsables. Reabra el formulario para reintentar."); });
+    return () => controlador.abort();
+  }, []);
 
   async function subirArchivos(idIncidencia: string, archivos: File[]) {
     for (const archivo of archivos) {
@@ -80,6 +98,8 @@ export default function FormularioIncidencia({ catalogos, onExito, onCambio, idI
       categoria: form.get("categoria"),
       prioridad: form.get("prioridad"),
       confidencial: form.get("confidencial") === "on",
+      responsableEmail: modoEdicion && (!responsable || responsable === (valoresIniciales?.responsableEmail || "")) ? undefined : responsable,
+      fechaPrevistaActuacion: form.get("fechaPrevistaActuacion"),
     };
     try {
       const resp = await fetch(modoEdicion ? `/api/incidencias/${idIncidencia}` : "/api/incidencias", {
@@ -246,6 +266,21 @@ export default function FormularioIncidencia({ catalogos, onExito, onCambio, idI
           </select>
           {errores.prioridad && <p className="text-sm text-marca-700">{errores.prioridad}</p>}
         </div>
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <label className="block min-w-0 text-sm font-medium" htmlFor="responsableEmail">Responsable
+          <select id="responsableEmail" name="responsableEmail" value={responsable} onChange={(evento) => setResponsable(evento.target.value)} className="mt-1 w-full rounded-md border p-2">
+            <option value="">{modoEdicion ? "Mantener responsable actual" : "Yo (por defecto)"}</option>
+            {responsable && !usuarios.some((usuario) => usuario.email === responsable) && <option value={responsable}>{valoresIniciales?.responsableNombre || responsable}</option>}
+            {usuarios.map((usuario) => <option key={usuario.email} value={usuario.email}>{usuario.nombre} ({usuario.email})</option>)}
+          </select>
+          {errores.responsableEmail && <span className="text-sm text-red-700">{errores.responsableEmail}</span>}
+          {errorUsuarios && <span role="alert" className="text-xs text-red-700">{errorUsuarios}</span>}
+        </label>
+        <label className="block text-sm font-medium" htmlFor="fechaPrevistaActuacion">Fecha prevista de resolución
+          <input id="fechaPrevistaActuacion" name="fechaPrevistaActuacion" type="date" defaultValue={valoresIniciales?.fechaPrevistaActuacion?.slice(0, 10) || ""} className="mt-1 w-full rounded-md border p-2" />
+          {errores.fechaPrevistaActuacion && <span className="text-sm text-red-700">{errores.fechaPrevistaActuacion}</span>}
+        </label>
       </div>
       <div>
         <label className="block text-sm font-medium" htmlFor="imagenes">

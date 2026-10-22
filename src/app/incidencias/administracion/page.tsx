@@ -5,6 +5,9 @@ import { ROLES } from "@/lib/constants";
 import AccesoDenegado from "@/components/AccesoDenegado";
 import GestionUsuarios from "@/components/GestionUsuarios";
 import GestionCatalogos from "@/components/GestionCatalogos";
+import { tienePermiso } from "@/lib/permissions";
+import { obtenerEstadisticasUsuarios } from "@/lib/estadisticasUsuarios";
+import EstadisticasUsuarios from "@/components/EstadisticasUsuarios";
 
 export default async function AdministracionPage() {
   let actor;
@@ -13,22 +16,26 @@ export default async function AdministracionPage() {
   } catch (e) {
     return <AccesoDenegado mensaje={(e as Error).message} />;
   }
-  if (actor.rol !== ROLES.ADMIN) {
+  if (!tienePermiso(actor, "USUARIOS_ESTADISTICAS_VER")) {
     return <AccesoDenegado mensaje="No tiene permisos para acceder a Administración." />;
   }
 
-  const [usuarios, catalogos] = await Promise.all([listarUsuarios(actor), obtenerCatalogosCompletos()]);
+  const [estadisticas, gestion] = await Promise.all([
+    obtenerEstadisticasUsuarios(actor),
+    actor.rol === ROLES.ADMIN ? Promise.all([listarUsuarios(actor), obtenerCatalogosCompletos()]) : Promise.resolve(null),
+  ]);
 
   return (
     <div className="flex flex-col gap-8">
-      <div>
+      <EstadisticasUsuarios {...estadisticas} />
+      {gestion && <><div>
         <h2 className="mb-4 text-xl font-semibold">Administración de usuarios</h2>
-        <GestionUsuarios usuarios={usuarios} />
+        <GestionUsuarios usuarios={gestion[0]} />
       </div>
       <div>
         <h2 className="mb-4 text-xl font-semibold">Catálogos</h2>
-        <GestionCatalogos catalogos={catalogos} />
-      </div>
+        <GestionCatalogos catalogos={gestion[1]} />
+      </div></>}
     </div>
   );
 }

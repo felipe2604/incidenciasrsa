@@ -85,7 +85,7 @@ export default async function ListadoIncidenciasPage({
               <p className="text-xs text-gray-500">
                 {i.idIncidencia} · Prioridad {i.prioridad}
               </p>
-              {i.responsable && <p className="mt-1 text-xs text-gray-500">Responsable: {i.responsable}</p>}
+              {i.responsableNombre && <p className="mt-1 break-words text-xs text-gray-600">Responsable: {i.responsableNombre}</p>}
             </Link>
           ))}
         </div>
