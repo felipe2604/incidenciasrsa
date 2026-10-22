@@ -47,15 +47,18 @@ export default function ModalEditarIncidencia({ idIncidencia, valoresIniciales, 
       </button>
       {abierto && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:items-center"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-6"
           onClick={intentarCerrar}
         >
           <div
-            className="my-8 w-full max-w-lg rounded-lg bg-white p-4 shadow-xl sm:p-6"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="titulo-editar-incidencia"
+            className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl flex-col overflow-hidden rounded-lg bg-white p-4 shadow-xl sm:max-h-[calc(100dvh-3rem)] sm:p-6"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Editar incidencia</h2>
+            <div className="mb-4 flex shrink-0 items-center justify-between">
+              <h2 id="titulo-editar-incidencia" className="text-lg font-semibold">Editar incidencia</h2>
               <button
                 onClick={intentarCerrar}
                 aria-label="Cerrar"
@@ -64,13 +67,15 @@ export default function ModalEditarIncidencia({ idIncidencia, valoresIniciales, 
                 ×
               </button>
             </div>
-            <FormularioIncidencia
-              catalogos={catalogos}
-              idIncidencia={idIncidencia}
-              valoresIniciales={valoresIniciales}
-              onExito={alGuardar}
-              onCambio={() => setHuboCambios(true)}
-            />
+            <div className="min-h-0 overflow-y-auto pr-1">
+              <FormularioIncidencia
+                catalogos={catalogos}
+                idIncidencia={idIncidencia}
+                valoresIniciales={valoresIniciales}
+                onExito={alGuardar}
+                onCambio={() => setHuboCambios(true)}
+              />
+            </div>
           </div>
         </div>
       )}
