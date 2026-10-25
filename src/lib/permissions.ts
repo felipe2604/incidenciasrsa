@@ -19,6 +19,7 @@ export const PERMISOS_POR_ROL: Record<string, string[]> = {
   ],
   PRESIDENTE: [
     "USUARIOS_ESTADISTICAS_VER",
+    "MAILS_GESTIONAR",
     "INCIDENCIAS_VER_TODAS",
     "INCIDENCIAS_CREAR",
     "INCIDENCIAS_EDITAR",

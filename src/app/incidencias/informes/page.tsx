@@ -74,11 +74,12 @@ export default async function InformesPage({ searchParams }: { searchParams: Pro
       <section className="mb-6 overflow-x-auto border-y border-marca-200 py-4">
         <h3 className="mb-3 font-semibold">Detalle de incidencias ({resumen.incidencias.length})</h3>
         <table className="w-full min-w-[600px] text-left text-sm">
-          <thead><tr className="border-b text-xs text-gray-500"><th className="p-2">Incidencia</th><th className="p-2">Alta</th><th className="p-2">Ubicación</th><th className="p-2">Estado</th></tr></thead>
+          <thead><tr className="border-b text-xs text-gray-500"><th className="p-2">Incidencia</th><th className="p-2">Alta</th><th className="p-2">Creada por</th><th className="p-2">Ubicación</th><th className="p-2">Estado</th></tr></thead>
           <tbody>{resumen.incidencias.map((incidencia) => (
             <tr key={incidencia.idIncidencia} className="border-b border-gray-100">
               <td className="p-2"><Link className="font-medium hover:underline" href={`/incidencias/${incidencia.idIncidencia}`}>{incidencia.titulo}</Link><div className="text-xs text-gray-500">{incidencia.idIncidencia}</div></td>
               <td className="p-2">{incidencia.fechaCreacion.slice(0, 10)}</td>
+              <td className="p-2">{incidencia.usuarioCreadorNombre || "Desconocido"}</td>
               <td className="p-2">{incidencia.bloque || incidencia.zonaComun}</td>
               <td className="p-2"><span className={`inline-block rounded-full px-2 py-1 text-xs ${COLORES_ESTADO[incidencia.estado]}`}>{incidencia.archivada ? "Archivada · " : ""}{ETIQUETAS_ESTADO[incidencia.estado]}</span></td>
             </tr>

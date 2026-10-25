@@ -33,9 +33,10 @@ interface PropiedadesFormularioIncidencia {
   onCambio?: () => void;
   idIncidencia?: string;
   valoresIniciales?: ValoresIncidencia;
+  datosExtra?: Record<string, unknown>;
 }
 
-export default function FormularioIncidencia({ catalogos, onExito, onCambio, idIncidencia, valoresIniciales }: PropiedadesFormularioIncidencia) {
+export default function FormularioIncidencia({ catalogos, onExito, onCambio, idIncidencia, valoresIniciales, datosExtra }: PropiedadesFormularioIncidencia) {
   const modoEdicion = !!idIncidencia;
   const router = useRouter();
   const [tipoUbicacion, setTipoUbicacion] = useState<"BLOQUE" | "ZONA_COMUN">(valoresIniciales?.tipoUbicacion || "BLOQUE");
@@ -105,7 +106,7 @@ export default function FormularioIncidencia({ catalogos, onExito, onCambio, idI
       const resp = await fetch(modoEdicion ? `/api/incidencias/${idIncidencia}` : "/api/incidencias", {
         method: modoEdicion ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(datos),
+        body: JSON.stringify({ ...datos, ...datosExtra }),
       });
       const json = await resp.json();
       if (!json.ok) {

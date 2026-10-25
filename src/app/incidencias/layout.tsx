@@ -7,6 +7,7 @@ import CerrarSesionBoton from "@/components/CerrarSesionBoton";
 import SelectorAspecto from "@/components/SelectorAspecto";
 import NavegacionModerna from "@/components/NavegacionModerna";
 import CampanaNotificaciones from "@/components/CampanaNotificaciones";
+import NavegacionActual from "@/components/NavegacionActual";
 
 export default async function IncidenciasLayout({ children }: { children: React.ReactNode }) {
   let actor;
@@ -22,10 +23,19 @@ export default async function IncidenciasLayout({ children }: { children: React.
   const esAdmin = rol === "ADMIN";
   const puedeVerInformes = esAdmin || rol === "PRESIDENTE" || rol === "ADMINISTRADOR_FINCAS";
   const puedeVerAdministracion = tienePermiso(actor, "USUARIOS_ESTADISTICAS_VER");
+  const puedeVerCorreos = tienePermiso(actor, "MAILS_GESTIONAR");
+  const enlaces = [
+    { href: "/incidencias/perfil", texto: "Mi perfil" },
+    { href: "/incidencias/panel", texto: "Panel" },
+    { href: "/incidencias", texto: "Incidencias" },
+    ...(puedeVerInformes ? [{ href: "/incidencias/informes", texto: "Informes" }] : []),
+    ...(puedeVerCorreos ? [{ href: "/incidencias/correos", texto: "Correos" }] : []),
+    ...(puedeVerAdministracion ? [{ href: "/incidencias/administracion", texto: "Administración" }] : []),
+  ];
 
   return (
     <div className="app-shell mx-auto max-w-6xl p-3 sm:p-6">
-      <NavegacionModerna informes={puedeVerInformes} administracion={puedeVerAdministracion} />
+      <NavegacionModerna informes={puedeVerInformes} administracion={puedeVerAdministracion} correos={puedeVerCorreos} />
       <header className="app-header mb-4 border-b border-marca-200 pb-3">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <Link href="/incidencias/panel" className="flex items-center gap-3">
@@ -49,25 +59,7 @@ export default async function IncidenciasLayout({ children }: { children: React.
             <CerrarSesionBoton />
           </div>
         </div>
-        <nav className="app-nav -mx-1 flex gap-1 overflow-x-auto text-sm font-medium text-marca-700 sm:gap-2">
-          <Link href="/incidencias/perfil" className="whitespace-nowrap rounded-md px-2 py-1 hover:bg-marca-100/50">Mi perfil</Link>
-          <Link href="/incidencias/panel" className="whitespace-nowrap rounded-md px-2 py-1 hover:bg-marca-100/50">
-            Panel
-          </Link>
-          <Link href="/incidencias" className="whitespace-nowrap rounded-md px-2 py-1 hover:bg-marca-100/50">
-            Incidencias
-          </Link>
-          {puedeVerInformes && (
-            <Link href="/incidencias/informes" className="whitespace-nowrap rounded-md px-2 py-1 hover:bg-marca-100/50">
-              Informes
-            </Link>
-          )}
-          {puedeVerAdministracion && (
-            <Link href="/incidencias/administracion" className="whitespace-nowrap rounded-md px-2 py-1 hover:bg-marca-100/50">
-              Administración
-            </Link>
-          )}
-        </nav>
+        <NavegacionActual enlaces={enlaces} />
       </header>
       <main className="app-content min-w-0">{children}</main>
     </div>

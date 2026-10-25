@@ -21,6 +21,7 @@ export interface Incidencia {
   fecha_creacion: string;
   usuario_creador: string;
   usuario_creador_email?: string;
+  usuario_creador_nombre?: string;
   titulo: string;
   descripcion: string;
   tipo_ubicacion: TipoUbicacion;
@@ -76,6 +77,7 @@ export interface IncidenciaProyectada {
   fechaCreacion: string;
   usuarioCreador: string;
   usuarioCreadorEmail?: string;
+  usuarioCreadorNombre?: string;
   titulo: string;
   descripcion: string;
   tipoUbicacion: TipoUbicacion;

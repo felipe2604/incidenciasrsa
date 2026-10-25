@@ -12,6 +12,7 @@ export const HOJAS = {
   CONFIGURACION: "Configuracion",
   AUDITORIA: "Auditoria",
   NOTIFICACIONES: "Notificaciones",
+  MAILS: "Mails",
 } as const;
 
 export const ROLES = {

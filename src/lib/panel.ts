@@ -1,7 +1,7 @@
 import { ESTADOS, ESTADOS_PENDIENTES, ESTADOS_SIN_TRABAJO_PENDIENTE, HOJAS, TIPO_UBICACION, type Estado } from "./constants";
 import { leerFilasComoObjetos } from "./sheets";
 import { esResponsable, incidenciaEnAmbito } from "./permissions";
-import { estaArchivada } from "./incidencias";
+import { estaArchivada, obtenerResolverNombres } from "./incidencias";
 import type { Incidencia, Usuario } from "./types";
 
 export interface IncidenciaReciente {
@@ -9,6 +9,7 @@ export interface IncidenciaReciente {
   titulo: string;
   estado: Estado;
   fecha: string;
+  creador: string;
 }
 
 export interface DatosPanel {
@@ -28,7 +29,7 @@ export interface DatosPanel {
 // indicadores del panel principal a partir de las incidencias en el ámbito
 // del usuario (misma regla de visibilidad que el listado).
 export async function obtenerDatosPanel(actor: Usuario): Promise<DatosPanel> {
-  const datos = await leerFilasComoObjetos(HOJAS.INCIDENCIAS);
+  const [datos, nombre] = await Promise.all([leerFilasComoObjetos(HOJAS.INCIDENCIAS), obtenerResolverNombres()]);
   const incidencias = datos.filas
     .map((f) => f.objeto as Incidencia)
     .filter((inc) => incidenciaEnAmbito(actor, inc))
@@ -61,6 +62,7 @@ export async function obtenerDatosPanel(actor: Usuario): Promise<DatosPanel> {
       titulo: inc.titulo,
       estado: inc.estado,
       fecha: inc.fecha_ultima_modificacion,
+      creador: nombre(inc.usuario_creador, inc.usuario_creador_email),
     }));
 
   return {

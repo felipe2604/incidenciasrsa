@@ -65,7 +65,7 @@ export default async function PanelPage() {
               <li key={r.idIncidencia} className="py-1">
                 <Link href={`/incidencias/${r.idIncidencia}`} className="block rounded-md p-2 hover:bg-marca-100/30">
                   <div className="flex items-center justify-between">
-                    <span className="font-medium">{r.titulo}</span>
+                    <span className="min-w-0"><span className="block break-words font-medium">{r.titulo}</span><span className="block text-xs text-gray-500">Creada por {r.creador}</span></span>
                     <span className={`rounded-full px-2 py-1 text-xs ${COLORES_ESTADO[r.estado] || "bg-marca-200"}`}>
                       {ETIQUETAS_ESTADO[r.estado] || r.estado}
                     </span>

@@ -42,6 +42,10 @@ const hojas = {
   Comentarios: tabla([], ["id_comentario", "id_incidencia", "texto", "fecha", "usuario"]),
   Actuaciones: tabla([], ["id_actuacion", "id_incidencia"]),
   Notificaciones: tabla([], ["id_notificacion", "id_incidencia"]),
+  Mails: tabla([
+    { fecha: "24/10/2026 09:15", remitente: "vecino@example.invalid", asunto: "Luz fundida en la azotea", cuerpo: "La luz de la azotea del bloque 1 no funciona." },
+    { fecha: "24/10/2026 18:40", remitente: "otro.vecino@example.invalid", asunto: "Ruido en el ascensor", cuerpo: "El ascensor hace un ruido metálico al subir." },
+  ]),
   Auditoria: tabla([], ["id_auditoria", "fecha", "accion", "entidad", "id_entidad", "detalle", "resultado"]),
 };
 
@@ -90,7 +94,18 @@ const original = Module._load;
 Module._load = function (request, parent, isMain) {
   if (request === "googleapis") return { google: {
     auth: { JWT: class { async authorize() {} } },
-    sheets: () => ({ spreadsheets: { values } }),
+    sheets: () => ({ spreadsheets: {
+      values,
+      async get() { return { data: { sheets: Object.keys(hojas).map((title, sheetId) => ({ properties: { title, sheetId } })) } }; },
+      async batchUpdate({ requestBody }) {
+        for (const { deleteDimension } of requestBody.requests) {
+          const nombre = Object.keys(hojas)[deleteDimension.range.sheetId];
+          if (deleteDimension.range.startIndex < 1) throw new Error("No se borran cabeceras");
+          hojas[nombre].splice(deleteDimension.range.startIndex, deleteDimension.range.endIndex - deleteDimension.range.startIndex);
+        }
+        return { data: {} };
+      },
+    } }),
   } };
   return original.call(this, request, parent, isMain);
 };

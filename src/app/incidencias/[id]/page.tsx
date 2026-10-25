@@ -1,5 +1,5 @@
 import { obtenerUsuarioActual } from "@/lib/sesion";
-import { listarComentarios, obtenerIncidenciaDetalle } from "@/lib/incidencias";
+import { listarComentarios, obtenerIncidenciaDetalle, obtenerResolverNombres } from "@/lib/incidencias";
 import { listarArchivosPorIncidencia } from "@/lib/archivos";
 import { esCreador, puedeCambiarEstado, tienePermiso } from "@/lib/permissions";
 import { obtenerCatalogos } from "@/lib/catalogos";
@@ -27,10 +27,11 @@ export default async function DetalleIncidenciaPage({ params }: { params: Promis
     return <AccesoDenegado mensaje={(e as Error).message} />;
   }
 
-  const [comentarios, archivos, catalogos] = await Promise.all([
+  const [comentarios, archivos, catalogos, nombre] = await Promise.all([
     listarComentarios(actor, id),
     listarArchivosPorIncidencia(actor, id),
     obtenerCatalogos(),
+    obtenerResolverNombres(),
   ]);
   // Solo se exponen campos no sensibles de cada archivo: la URL real del blob
   // nunca llega al navegador, las descargas pasan por /api/archivos/[id]/descarga.
@@ -79,6 +80,7 @@ export default async function DetalleIncidenciaPage({ params }: { params: Promis
         </p>
         <UbicacionCategoriaIncidencia incidencia={incidencia} catalogos={catalogos} />
         <dl className="mb-3 flex flex-wrap gap-x-8 gap-y-3 text-sm">
+          <div><dt className="text-xs text-gray-500">Creada por</dt><dd className="break-words font-medium">{nombre(incidencia.usuarioCreador, incidencia.usuarioCreadorEmail)}</dd></div>
           <div><dt className="text-xs text-gray-500">Responsable</dt><dd className="break-words font-medium">{incidencia.responsableNombre || "Sin asignar"}</dd></div>
           {incidencia.fechaPrevistaActuacion && <div><dt className="text-xs text-gray-500">Fecha prevista de resolución</dt><dd className="font-medium"><time dateTime={incidencia.fechaPrevistaActuacion}>{new Date(incidencia.fechaPrevistaActuacion).toLocaleDateString("es-ES", { timeZone: "Europe/Madrid" })}</time></dd></div>}
         </dl>

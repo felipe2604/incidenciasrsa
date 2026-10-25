@@ -15,7 +15,25 @@ export function estaArchivada(inc: Incidencia, ahora = Date.now()): boolean {
   return Number.isFinite(instante) && ahora - instante >= 15 * 24 * 60 * 60 * 1000;
 }
 
-export function proyectarIncidencia(inc: Incidencia, actor: Usuario): IncidenciaProyectada {
+export type ResolverNombre = (id: string, email?: string) => string;
+
+// Prioriza el correo porque la hoja Usuarios tiene IDs históricos repetidos.
+export async function obtenerResolverNombres(): Promise<ResolverNombre> {
+  const datos = await leerFilasComoObjetos(HOJAS.USUARIOS);
+  const porEmail = new Map<string, string>();
+  const porId = new Map<string, string[]>();
+  for (const { objeto } of datos.filas) {
+    const nombre = String(objeto.nombre || objeto.email || "");
+    const email = String(objeto.email || "").toLowerCase().trim();
+    if (email) porEmail.set(email, nombre);
+    const id = String(objeto.id_usuario || "");
+    if (id) porId.set(id, [...(porId.get(id) || []), nombre]);
+  }
+  return (id, email) => (email && porEmail.get(email.toLowerCase().trim())) ||
+    (porId.get(id)?.length === 1 ? porId.get(id)![0] : "") || "Desconocido";
+}
+
+export function proyectarIncidencia(inc: Incidencia, actor: Usuario, nombreCreador?: string): IncidenciaProyectada {
   const esConfidencial = inc.confidencial === true || inc.confidencial === "TRUE";
   const puedeVerConfidencial =
     actor.rol === ROLES.ADMIN || actor.rol === ROLES.PRESIDENTE || esCreador(actor, inc);
@@ -24,6 +42,7 @@ export function proyectarIncidencia(inc: Incidencia, actor: Usuario): Incidencia
     fechaCreacion: inc.fecha_creacion,
     usuarioCreador: inc.usuario_creador,
     usuarioCreadorEmail: inc.usuario_creador_email,
+    usuarioCreadorNombre: nombreCreador || inc.usuario_creador_nombre || "",
     titulo: inc.titulo,
     descripcion: esConfidencial && !puedeVerConfidencial ? "(Información confidencial)" : inc.descripcion,
     tipoUbicacion: inc.tipo_ubicacion,
@@ -118,7 +137,7 @@ function cumpleFiltroRapido(inc: Incidencia, actor: Usuario, filtroRapido: strin
 
 export async function listarIncidencias(actor: Usuario, filtros: FiltrosIncidencias = {}): Promise<IncidenciaProyectada[]> {
   validarFiltros(filtros);
-  const datos = await leerFilasComoObjetos(HOJAS.INCIDENCIAS);
+  const [datos, nombre] = await Promise.all([leerFilasComoObjetos(HOJAS.INCIDENCIAS), obtenerResolverNombres()]);
   return datos.filas
     .map((f) => f.objeto as Incidencia)
     .filter((inc) => incidenciaEnAmbito(actor, inc))
@@ -138,7 +157,7 @@ export async function listarIncidencias(actor: Usuario, filtros: FiltrosIncidenc
       return String(visible.titulo || "").toLowerCase().includes(t) || String(visible.descripcion || "").toLowerCase().includes(t);
     })
     .sort((a, b) => String(b.fecha_creacion).localeCompare(String(a.fecha_creacion)))
-    .map((inc) => proyectarIncidencia(inc, actor));
+    .map((inc) => proyectarIncidencia(inc, actor, nombre(inc.usuario_creador, inc.usuario_creador_email)));
 }
 
 async function buscarFilaIncidencia(idIncidencia: string) {
@@ -192,13 +211,14 @@ export async function crearIncidencia(actor: Usuario, datos: DatosIncidenciaNuev
 
   const responsable = await resolverResponsable(actor, datos.responsableEmail);
   const idNuevo = await generarSiguienteId("INC");
-  const encabezados = await obtenerEncabezados(HOJAS.INCIDENCIAS, ["responsable", "responsable_email", "responsable_nombre", "fecha_asignacion", "usuario_creador_email"]);
+  const encabezados = await obtenerEncabezados(HOJAS.INCIDENCIAS, ["responsable", "responsable_email", "responsable_nombre", "fecha_asignacion", "usuario_creador_email", "usuario_creador_nombre"]);
   const ahora = new Date().toISOString();
   await agregarFila(HOJAS.INCIDENCIAS, encabezados, {
     id_incidencia: idNuevo,
     fecha_creacion: ahora,
     usuario_creador: actor.id_usuario,
     usuario_creador_email: actor.email,
+    usuario_creador_nombre: actor.nombre,
     titulo: limpio.titulo,
     descripcion: limpio.descripcion,
     tipo_ubicacion: datos.tipoUbicacion,

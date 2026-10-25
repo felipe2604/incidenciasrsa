@@ -118,6 +118,18 @@ export async function actualizarCelda(
   });
 }
 
+export async function eliminarFilaHoja(nombreHoja: string, numeroFila: number): Promise<void> {
+  if (!Number.isInteger(numeroFila) || numeroFila < 2) throw new Error("No se pueden eliminar las cabeceras de una hoja.");
+  const sheets = await obtenerApiSheets();
+  const info = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID, fields: "sheets.properties(sheetId,title)" });
+  const sheetId = info.data.sheets?.find((hoja) => hoja.properties?.title === nombreHoja)?.properties?.sheetId;
+  if (sheetId === undefined || sheetId === null) throw new Error(`Hoja no encontrada: ${nombreHoja}`);
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: SPREADSHEET_ID,
+    requestBody: { requests: [{ deleteDimension: { range: { sheetId, dimension: "ROWS", startIndex: numeroFila - 1, endIndex: numeroFila } } }] },
+  });
+}
+
 export async function eliminarFilas(filas: { hoja: string; numeroFila: number }[]): Promise<void> {
   if (filas.length === 0) return;
   if (filas.some((fila) => !Number.isInteger(fila.numeroFila) || fila.numeroFila < 2)) {
