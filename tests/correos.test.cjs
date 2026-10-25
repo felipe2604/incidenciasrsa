@@ -74,6 +74,28 @@ test("el borrado físico localiza la pestaña y protege las cabeceras", async ()
   await assert.rejects(() => sheets.eliminarFilaHoja("Inexistente", 3));
 });
 
+test("añadir una cabecera amplía la cuadrícula si no quedan columnas", async () => {
+  const peticiones = [];
+  const actualizaciones = [];
+  const sheets = cargar("src/lib/sheets.ts", { googleapis: { google: {
+    auth: { JWT: class { async authorize() {} } },
+    sheets: () => ({ spreadsheets: {
+      get: async () => ({ data: { sheets: [{ properties: { title: "Incidencias", sheetId: 3, gridProperties: { columnCount: 2 } } }] } }),
+      batchUpdate: async (peticion) => peticiones.push(peticion),
+      values: {
+        get: async () => ({ data: { values: [["a", "b"]] } }),
+        update: async (peticion) => actualizaciones.push(peticion),
+      },
+    } }),
+  } } });
+  const encabezados = await sheets.obtenerEncabezados("Incidencias", ["b", "c", "d"]);
+  assert.equal(encabezados.join(","), "a,b,c,d");
+  assert.equal(JSON.stringify(peticiones[0].requestBody.requests[0].appendDimension), JSON.stringify({ sheetId: 3, dimension: "COLUMNS", length: 2 }));
+  assert.equal(actualizaciones[0].range, "Incidencias!C1");
+  await sheets.obtenerEncabezados("Incidencias", ["a"]);
+  assert.equal(peticiones.length, 1);
+});
+
 test("el menú marca la sección más específica", () => {
   const { hrefActivo } = cargar("src/lib/navegacion.ts");
   const hrefs = ["/incidencias/panel", "/incidencias", "/incidencias/correos"];

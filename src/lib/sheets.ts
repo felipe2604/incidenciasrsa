@@ -68,6 +68,15 @@ export async function obtenerEncabezados(nombreHoja: string, camposRequeridos: s
   const encabezados = (resp.data.values && (resp.data.values[0] as string[])) || [];
   const faltantes = camposRequeridos.filter((campo) => !encabezados.includes(campo));
   if (faltantes.length > 0) {
+    const info = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID, fields: "sheets.properties(sheetId,title,gridProperties.columnCount)" });
+    const propiedades = info.data.sheets?.find((hoja) => hoja.properties?.title === nombreHoja)?.properties;
+    const columnasNecesarias = encabezados.length + faltantes.length - (propiedades?.gridProperties?.columnCount ?? 0);
+    if (propiedades?.sheetId !== undefined && propiedades?.sheetId !== null && columnasNecesarias > 0) {
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: SPREADSHEET_ID,
+        requestBody: { requests: [{ appendDimension: { sheetId: propiedades.sheetId, dimension: "COLUMNS", length: columnasNecesarias } }] },
+      });
+    }
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
       range: `${nombreHoja}!${columnaAIndiceLetra(encabezados.length)}1`,

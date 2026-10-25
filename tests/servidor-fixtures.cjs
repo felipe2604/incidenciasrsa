@@ -99,6 +99,7 @@ Module._load = function (request, parent, isMain) {
       async get() { return { data: { sheets: Object.keys(hojas).map((title, sheetId) => ({ properties: { title, sheetId } })) } }; },
       async batchUpdate({ requestBody }) {
         for (const { deleteDimension } of requestBody.requests) {
+          if (!deleteDimension) continue;
           const nombre = Object.keys(hojas)[deleteDimension.range.sheetId];
           if (deleteDimension.range.startIndex < 1) throw new Error("No se borran cabeceras");
           hojas[nombre].splice(deleteDimension.range.startIndex, deleteDimension.range.endIndex - deleteDimension.range.startIndex);
