@@ -90,9 +90,14 @@ Otros puntos relevantes:
 | --- | --- | --- |
 | ADMIN | Todo | Gestión completa, incluidos usuarios y catálogos. |
 | PRESIDENTE | Todas las incidencias, contenido confidencial, informes y contadores por usuario | Crear y editar cualquier incidencia, cambiar estados, comentar y adjuntar. Sin gestión de usuarios ni catálogos. |
-| VOCAL | Bloques y zonas de su ámbito e incidencias asignadas personalmente; descripción confidencial solo si es propia | Crear, editar las propias, comentar y adjuntar. Sin cambios de estado ni informes. |
-| COORDINADOR | Igual que VOCAL | Igual que VOCAL. |
+| VOCAL | Bloques y zonas de su ámbito e incidencias asignadas personalmente; descripción confidencial solo si es propia | Crear, editar, comentar y adjuntar solo en las propias. Las ajenas son de lectura estricta. Sin cambios de estado ni informes. |
+| COORDINADOR | Mismo ámbito de lectura que VOCAL | Crear y editar las propias; comentar y adjuntar también en las ajenas visibles. Sin cambios de estado ni informes. |
 | ADMINISTRADOR_FINCAS | Todas las incidencias e informes; descripción confidencial solo si es propia | Crear, editar y cambiar estado solo de las propias; comentar y adjuntar también en las ajenas. Sin gestión de usuarios ni catálogos. |
+
+Solo ADMIN puede pasar de Cancelada a cualquier otro estado y de Registrada
+directamente a En curso. Las transiciones del resto de perfiles no cambian.
+Reactivar una cancelada elimina las fechas de finalización y la marca de archivada;
+volver a Resuelta o Cerrada establece una nueva fecha de estado final.
 
 ### Acceso Sin Google
 

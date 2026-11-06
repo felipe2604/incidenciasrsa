@@ -1,7 +1,7 @@
 import { HOJAS, LIMITES } from "./constants";
 import { list } from "@vercel/blob";
 import { actualizarCelda, agregarFila, leerFilasComoObjetos, obtenerEncabezados } from "./sheets";
-import { ErrorAplicacion, verificarPermiso } from "./permissions";
+import { ErrorAplicacion, puedeColaborar, verificarPermiso } from "./permissions";
 import { registrarAuditoria } from "./auditoria";
 import { obtenerIncidenciaDetalle } from "./incidencias";
 import type { Usuario } from "./types";
@@ -16,7 +16,10 @@ export interface DatosArchivoNuevo {
 
 export async function registrarArchivo(actor: Usuario, datos: DatosArchivoNuevo): Promise<string> {
   verificarPermiso(actor, "ARCHIVOS_SUBIR");
-  await obtenerIncidenciaDetalle(actor, datos.idIncidencia); // valida acceso y existencia
+  const incidencia = await obtenerIncidenciaDetalle(actor, datos.idIncidencia);
+  if (!puedeColaborar(actor, incidencia.usuarioCreador, incidencia.usuarioCreadorEmail)) {
+    throw new ErrorAplicacion("PERMISO_DENEGADO", "Solo puede adjuntar archivos a las incidencias que usted creó.");
+  }
   if (!(LIMITES.TIPOS_ARCHIVO_PERMITIDOS as readonly string[]).includes(datos.tipoMime)) {
     throw new ErrorAplicacion("DATOS_INVALIDOS", "Tipo de archivo no permitido.");
   }

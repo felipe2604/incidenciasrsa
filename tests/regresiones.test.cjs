@@ -120,6 +120,93 @@ function entornoIncidencias(filas, usuarios = [admin, vocal]) {
   });
 }
 
+test("solo ADMIN puede salir de Cancelada a cualquier otro estado", async () => {
+  for (const destino of Object.values(constantes.ESTADOS).filter((estado) => estado !== "CANCELADA")) {
+    const fila = { id_incidencia: "CANCELADA-TEST", usuario_creador: admin.id_usuario, usuario_creador_email: admin.email,
+      tipo_ubicacion: "BLOQUE", bloque: "B1", estado: "CANCELADA", fecha_resolucion: "2020-01-01", fecha_estado_final: "2020-01-01", archivada: true };
+    const lib = entornoIncidencias([fila]);
+    await lib.cambiarEstadoIncidencia(admin, fila.id_incidencia, destino);
+    assert.equal(fila.estado, destino);
+    assert.equal(fila.archivada, false);
+    if (!["RESUELTA", "CERRADA"].includes(destino)) {
+      assert.equal(fila.fecha_resolucion, "");
+      assert.equal(fila.fecha_estado_final, "");
+    }
+  }
+  for (const rol of ["PRESIDENTE", "ADMINISTRADOR_FINCAS", "VOCAL", "COORDINADOR"]) {
+    const actor = { ...vocal, rol };
+    const fila = { id_incidencia: "CANCELADA-TEST", usuario_creador: actor.id_usuario, usuario_creador_email: actor.email,
+      tipo_ubicacion: "BLOQUE", bloque: "B1", estado: "CANCELADA" };
+    await assert.rejects(() => entornoIncidencias([fila]).cambiarEstadoIncidencia(actor, fila.id_incidencia, "REGISTRADA"));
+    assert.equal(fila.estado, "CANCELADA");
+  }
+});
+
+test("Registrada a En curso es exclusivo de ADMIN y no permite estados inventados", async () => {
+  for (const rol of Object.values(constantes.ROLES)) {
+    const actor = { ...vocal, rol };
+    const fila = { id_incidencia: "REGISTRADA-TEST", usuario_creador: actor.id_usuario, usuario_creador_email: actor.email,
+      tipo_ubicacion: "BLOQUE", bloque: "B1", estado: "REGISTRADA" };
+    const lib = entornoIncidencias([fila]);
+    if (rol === "ADMIN") {
+      await lib.cambiarEstadoIncidencia(actor, fila.id_incidencia, "EN_CURSO");
+      assert.equal(fila.estado, "EN_CURSO");
+    } else {
+      await assert.rejects(() => lib.cambiarEstadoIncidencia(actor, fila.id_incidencia, "EN_CURSO"));
+      assert.equal(fila.estado, "REGISTRADA");
+    }
+  }
+  const fila = { id_incidencia: "CANCELADA-TEST", estado: "CANCELADA" };
+  await assert.rejects(() => entornoIncidencias([fila]).cambiarEstadoIncidencia(admin, fila.id_incidencia, "INVENTADO"));
+  assert.equal(fila.estado, "CANCELADA");
+});
+
+test("VOCAL tiene lectura estricta en las ajenas incluso asignadas, pero comenta las propias", async () => {
+  const fila = { id_incidencia: "LECTURA-TEST", usuario_creador: admin.id_usuario, usuario_creador_email: admin.email,
+    responsable: vocal.id_usuario, responsable_email: vocal.email, tipo_ubicacion: "BLOQUE", bloque: "B2", estado: "REGISTRADA" };
+  const filas = [fila];
+  const lib = entornoIncidencias(filas);
+  assert.ok(await lib.obtenerIncidenciaDetalle(vocal, fila.id_incidencia));
+  await assert.rejects(() => lib.agregarComentario(vocal, fila.id_incidencia, "Comentario"), (error) => error.codigo === "PERMISO_DENEGADO");
+  assert.equal(filas.length, 1);
+  fila.usuario_creador = vocal.id_usuario;
+  fila.usuario_creador_email = vocal.email;
+  await lib.agregarComentario(vocal, fila.id_incidencia, "Comentario propio");
+  assert.equal(filas.length, 2);
+  for (const rol of ["ADMIN", "PRESIDENTE", "COORDINADOR", "ADMINISTRADOR_FINCAS"]) {
+    assert.equal(permisos.puedeColaborar({ ...vocal, rol }, admin.id_usuario, admin.email), true);
+  }
+});
+
+test("VOCAL no puede registrar adjuntos en incidencias ajenas", async () => {
+  let escrituras = 0;
+  const archivos = cargar("src/lib/archivos.ts", {
+    "./constants": constantes, "./permissions": permisos, "@vercel/blob": {}, "./auditoria": {},
+    "./incidencias": { obtenerIncidenciaDetalle: async () => ({ usuarioCreador: admin.id_usuario, usuarioCreadorEmail: admin.email }) },
+    "./sheets": { agregarFila: async () => { escrituras++; } },
+  });
+  await assert.rejects(() => archivos.registrarArchivo(vocal, { idIncidencia: "AJENA", nombreOriginal: "prueba.png", tipoMime: "image/png", tamanoBytes: 1, urlBlob: "https://example.invalid/prueba.png" }),
+    (error) => error.codigo === "PERMISO_DENEGADO");
+  assert.equal(escrituras, 0);
+});
+
+test("subir adjuntos a una ajena se rechaza antes de crear el Blob", async () => {
+  let subidas = 0;
+  const esquemas = cargar("src/lib/esquemas.ts", { "./constants": constantes });
+  const api = cargar("src/lib/api.ts", { "./permissions": permisos });
+  const ruta = cargar("src/app/api/archivos/route.ts", {
+    "@/lib/sesion": { obtenerUsuarioActual: async () => vocal }, "@/lib/constants": constantes, "@/lib/esquemas": esquemas,
+    "@/lib/permissions": permisos, "@/lib/api": api, "@/lib/archivos": {},
+    "@/lib/incidencias": { obtenerIncidenciaDetalle: async () => ({ usuarioCreador: admin.id_usuario, usuarioCreadorEmail: admin.email }) },
+    "@vercel/blob": { put: async () => { subidas++; } },
+  });
+  const request = new Request("http://localhost/api/archivos", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ idIncidencia: "AJENA", nombreOriginal: "prueba.png", tipoMime: "image/png", contenidoBase64: "AA==" }) });
+  const respuesta = await ruta.POST(request);
+  assert.equal(respuesta.status, 403);
+  assert.equal(subidas, 0);
+});
+
 test("crear asigna al creador por defecto y permite elegir cualquier cuenta activa", async () => {
   const filas = [];
   const lib = entornoIncidencias(filas);

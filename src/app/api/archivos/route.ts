@@ -5,6 +5,8 @@ import { registrarArchivo } from "@/lib/archivos";
 import { manejarErrorApi } from "@/lib/api";
 import { LIMITES } from "@/lib/constants";
 import { esquemaArchivoNuevo } from "@/lib/esquemas";
+import { obtenerIncidenciaDetalle } from "@/lib/incidencias";
+import { ErrorAplicacion, puedeColaborar, verificarPermiso } from "@/lib/permissions";
 
 // Base64 infla el tamaño ~4/3; se usa como cota de rechazo temprano (antes de
 // decodificar el buffer completo) para no malgastar CPU/memoria con payloads
@@ -20,6 +22,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, message: "Faltan datos del archivo." }, { status: 400 });
     }
     const { idIncidencia, nombreOriginal, tipoMime, contenidoBase64 } = analizado.data;
+    verificarPermiso(actor, "ARCHIVOS_SUBIR");
+    const incidencia = await obtenerIncidenciaDetalle(actor, idIncidencia);
+    if (!puedeColaborar(actor, incidencia.usuarioCreador, incidencia.usuarioCreadorEmail)) {
+      throw new ErrorAplicacion("PERMISO_DENEGADO", "Solo puede adjuntar archivos a las incidencias que usted creó.");
+    }
+    if (!(LIMITES.TIPOS_ARCHIVO_PERMITIDOS as readonly string[]).includes(tipoMime)) {
+      throw new ErrorAplicacion("DATOS_INVALIDOS", "Tipo de archivo no permitido.");
+    }
     if (contenidoBase64.length > TAMANO_BASE64_MAXIMO) {
       return NextResponse.json(
         { ok: false, message: "El archivo supera el tamaño máximo permitido (10 MB)." },
@@ -33,8 +43,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    // La incidencia/ámbito y el tipo MIME se revalidan de nuevo dentro de
-    // registrarArchivo(); el Blob se crea solo después de pasar esas comprobaciones.
     const blob = await put(`incidencias/${idIncidencia}/${Date.now()}-${nombreOriginal}`, buffer, {
       access: "public",
       contentType: tipoMime,

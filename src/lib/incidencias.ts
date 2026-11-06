@@ -1,6 +1,6 @@
-import { ESTADOS, ESTADOS_PENDIENTES, ESTADOS_SIN_TRABAJO_PENDIENTE, HOJAS, LIMITES, ROLES, TIPO_UBICACION, TRANSICIONES_ESTADO, type Estado } from "./constants";
+import { ESTADOS, ESTADOS_PENDIENTES, ESTADOS_SIN_TRABAJO_PENDIENTE, HOJAS, LIMITES, ROLES, TIPO_UBICACION, type Estado } from "./constants";
 import { actualizarCelda, agregarFila, generarSiguienteId, leerFilasComoObjetos, obtenerEncabezados } from "./sheets";
-import { ErrorAplicacion, esCreador, esResponsable, incidenciaEnAmbito, listaAmbito, puedeCambiarEstado, tienePermiso, usuarioTieneAmbitoTotal, verificarPermiso } from "./permissions";
+import { ErrorAplicacion, esCreador, esResponsable, incidenciaEnAmbito, listaAmbito, puedeCambiarEstado, puedeColaborar, tienePermiso, transicionesPermitidas, usuarioTieneAmbitoTotal, verificarPermiso } from "./permissions";
 import { resolverResponsable } from "./asignaciones";
 import { sanearTextoEntrada, validarComentario, validarIncidencia, type DatosIncidenciaEntrada } from "./validaciones";
 import { registrarAuditoria } from "./auditoria";
@@ -318,15 +318,16 @@ export async function cambiarEstadoIncidencia(actor: Usuario, idIncidencia: stri
   if (!puedeCambiarEstado(actor, inc.usuario_creador, inc.usuario_creador_email)) {
     throw new ErrorAplicacion("PERMISO_DENEGADO", "No tiene permisos para cambiar el estado de esta incidencia.");
   }
-  const permitidas = TRANSICIONES_ESTADO[inc.estado as Estado] || [];
+  const permitidas = transicionesPermitidas(actor, inc.estado as Estado);
   if (!permitidas.includes(nuevoEstado as Estado)) {
     throw new ErrorAplicacion("ESTADO_INVALIDO", "Esa transición de estado no está permitida.");
   }
   const ahora = new Date().toISOString();
+  const reactivarCancelada = inc.estado === ESTADOS.CANCELADA && nuevoEstado !== ESTADOS.RESUELTA && nuevoEstado !== ESTADOS.CERRADA;
   const encabezados = await obtenerEncabezados(HOJAS.INCIDENCIAS, ["fecha_estado_final", "archivada"]);
   await actualizarCelda(HOJAS.INCIDENCIAS, numeroFila, encabezados, {
     estado: nuevoEstado,
-    fecha_resolucion: nuevoEstado === ESTADOS.RESUELTA ? ahora : nuevoEstado === ESTADOS.REABIERTA ? "" : inc.fecha_resolucion || "",
+    fecha_resolucion: nuevoEstado === ESTADOS.RESUELTA ? ahora : nuevoEstado === ESTADOS.REABIERTA || reactivarCancelada ? "" : inc.fecha_resolucion || "",
     fecha_estado_final: nuevoEstado === ESTADOS.RESUELTA || nuevoEstado === ESTADOS.CERRADA ? ahora : "",
     archivada: false,
     fecha_ultima_modificacion: ahora,
@@ -337,7 +338,10 @@ export async function cambiarEstadoIncidencia(actor: Usuario, idIncidencia: stri
 
 export async function agregarComentario(actor: Usuario, idIncidencia: string, texto: string): Promise<void> {
   verificarPermiso(actor, "COMENTARIOS_CREAR");
-  await obtenerIncidenciaDetalle(actor, idIncidencia); // valida existencia y ámbito
+  const incidencia = await obtenerIncidenciaDetalle(actor, idIncidencia);
+  if (!puedeColaborar(actor, incidencia.usuarioCreador, incidencia.usuarioCreadorEmail)) {
+    throw new ErrorAplicacion("PERMISO_DENEGADO", "Solo puede comentar las incidencias que usted creó.");
+  }
   const limpio = validarComentario({ texto });
   const encabezados = await obtenerEncabezados(HOJAS.COMENTARIOS);
   await agregarFila(HOJAS.COMENTARIOS, encabezados, {

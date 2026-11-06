@@ -1,9 +1,9 @@
 import { obtenerUsuarioActual } from "@/lib/sesion";
 import { listarComentarios, obtenerIncidenciaDetalle, obtenerResolverNombres } from "@/lib/incidencias";
 import { listarArchivosPorIncidencia } from "@/lib/archivos";
-import { esCreador, puedeCambiarEstado, tienePermiso } from "@/lib/permissions";
+import { esCreador, puedeCambiarEstado, puedeColaborar, tienePermiso, transicionesPermitidas } from "@/lib/permissions";
 import { obtenerCatalogos } from "@/lib/catalogos";
-import { TRANSICIONES_ESTADO, ETIQUETAS_ESTADO, COLORES_ESTADO, ROLES, type Estado } from "@/lib/constants";
+import { ETIQUETAS_ESTADO, COLORES_ESTADO, ROLES, type Estado } from "@/lib/constants";
 import AccesoDenegado from "@/components/AccesoDenegado";
 import FormularioComentario from "@/components/FormularioComentario";
 import CambiarEstadoIncidencia from "@/components/CambiarEstadoIncidencia";
@@ -42,7 +42,7 @@ export default async function DetalleIncidenciaPage({ params }: { params: Promis
   }));
 
   const puedeCambiarEstadoActual = puedeCambiarEstado(actor, incidencia.usuarioCreador, incidencia.usuarioCreadorEmail);
-  const transicionesPosibles = TRANSICIONES_ESTADO[incidencia.estado as Estado] || [];
+  const transicionesPosibles = transicionesPermitidas(actor, incidencia.estado as Estado);
   const puedeEditar =
     tienePermiso(actor, "INCIDENCIAS_EDITAR") ||
     (tienePermiso(actor, "INCIDENCIAS_EDITAR_PROPIO_AMBITO") && esCreador(actor, { usuario_creador: incidencia.usuarioCreador, usuario_creador_email: incidencia.usuarioCreadorEmail }));
@@ -162,9 +162,9 @@ export default async function DetalleIncidenciaPage({ params }: { params: Promis
             </li>
           ))}
         </ul>
-        <div className="mt-3">
+        {tienePermiso(actor, "COMENTARIOS_CREAR") && puedeColaborar(actor, incidencia.usuarioCreador, incidencia.usuarioCreadorEmail) && <div className="mt-3">
           <FormularioComentario idIncidencia={incidencia.idIncidencia} />
-        </div>
+        </div>}
       </section>
     </div>
   );

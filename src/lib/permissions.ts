@@ -3,7 +3,7 @@
  * Se comprueba SIEMPRE en el servidor (API routes / server actions); el
  * cliente solo oculta botones por comodidad, nunca es la barrera real.
  */
-import { TIPO_UBICACION } from "./constants";
+import { ESTADOS, ROLES, TIPO_UBICACION, TRANSICIONES_ESTADO, type Estado } from "./constants";
 import type { Incidencia, Usuario } from "./types";
 
 export const PERMISOS_POR_ROL: Record<string, string[]> = {
@@ -85,6 +85,18 @@ export function esResponsable(usuario: Usuario, incidencia: Pick<Incidencia, "re
 export function puedeCambiarEstado(usuario: Usuario, usuarioCreador: string, correoCreador?: string): boolean {
   return tienePermiso(usuario, "INCIDENCIAS_CAMBIAR_ESTADO") ||
     (tienePermiso(usuario, "INCIDENCIAS_CAMBIAR_ESTADO_PROPIAS") && esCreador(usuario, { usuario_creador: usuarioCreador, usuario_creador_email: correoCreador }));
+}
+
+export function transicionesPermitidas(usuario: Usuario, estado: Estado): Estado[] {
+  if (usuario.rol === ROLES.ADMIN && estado === ESTADOS.CANCELADA) {
+    return Object.values(ESTADOS).filter((destino) => destino !== ESTADOS.CANCELADA);
+  }
+  const habituales = TRANSICIONES_ESTADO[estado] || [];
+  return usuario.rol === ROLES.ADMIN && estado === ESTADOS.REGISTRADA ? [...habituales, ESTADOS.EN_CURSO] : habituales;
+}
+
+export function puedeColaborar(usuario: Usuario, usuarioCreador: string, correoCreador?: string): boolean {
+  return usuario.rol !== ROLES.VOCAL || esCreador(usuario, { usuario_creador: usuarioCreador, usuario_creador_email: correoCreador });
 }
 
 export function listaAmbito(valor: string | undefined | null): string[] {
