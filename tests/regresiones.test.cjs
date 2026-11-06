@@ -103,11 +103,11 @@ test("las operaciones rechazan sesión caducada, revocada y cambio pendiente", a
   await assert.rejects(() => sesion.obtenerUsuarioActual(), (error) => error.codigo === "ACCESO_NO_AUTORIZADO");
 });
 
-function entornoIncidencias(filas, usuarios = [admin, vocal]) {
+function entornoIncidencias(filas, usuarios = [admin, vocal], escrituras = []) {
   const sheets = {
     leerFilasComoObjetos: async (hoja) => ({ encabezados: [], filas: (hoja === "Usuarios" ? usuarios : filas).map((objeto, indice) => ({ objeto, numeroFila: indice + 2 })) }),
     obtenerEncabezados: async () => [],
-    actualizarCelda: async (_hoja, indice, _encabezados, cambios) => Object.assign(filas[indice - 2], cambios),
+    actualizarCelda: async (_hoja, indice, _encabezados, cambios) => { escrituras.push(cambios); return Object.assign(filas[indice - 2], cambios); },
     generarSiguienteId: async () => `TEST-NUEVA-${filas.length + 1}`,
     agregarFila: async (_hoja, _encabezados, objeto) => filas.push(objeto),
   };
@@ -119,6 +119,74 @@ function entornoIncidencias(filas, usuarios = [admin, vocal]) {
     "./sheets": sheets,
   });
 }
+
+const datosEdicionEstado = { titulo: "Incidencia editada", descripcion: "Descripción de prueba", tipoUbicacion: "BLOQUE", bloque: "B1", planta: "P1", categoria: "FONT", prioridad: "MEDIA" };
+
+test("todos los perfiles cambian estado propio por separado y al guardar la edición", async () => {
+  for (const rol of Object.values(constantes.ROLES)) {
+    const actor = { ...vocal, rol };
+    const fila = { id_incidencia: "ESTADO-PROPIO", usuario_creador: actor.id_usuario, usuario_creador_email: actor.email,
+      tipo_ubicacion: "BLOQUE", bloque: "B1", estado: "ASIGNADA", titulo: "Original" };
+    const escrituras = [];
+    const lib = entornoIncidencias([fila], [actor], escrituras);
+    await lib.cambiarEstadoIncidencia(actor, fila.id_incidencia, "EN_CURSO");
+    assert.equal(fila.estado, "EN_CURSO");
+    fila.estado = "ASIGNADA";
+    escrituras.length = 0;
+    await lib.actualizarIncidencia(actor, fila.id_incidencia, { ...datosEdicionEstado, estado: "EN_CURSO" });
+    assert.equal(fila.estado, "EN_CURSO");
+    assert.equal(fila.titulo, datosEdicionEstado.titulo);
+    assert.equal(escrituras.length, 1);
+  }
+});
+
+test("el selector de edición no permite saltos ADMIN ni guarda parcialmente una transición inválida", async () => {
+  for (const rol of ["PRESIDENTE", "VOCAL", "COORDINADOR", "ADMINISTRADOR_FINCAS"]) {
+    const actor = { ...vocal, rol };
+    const fila = { id_incidencia: "EDICION-INVALIDA", usuario_creador: actor.id_usuario, usuario_creador_email: actor.email,
+      tipo_ubicacion: "BLOQUE", bloque: "B1", estado: "REGISTRADA", titulo: "Original" };
+    const escrituras = [];
+    const lib = entornoIncidencias([fila], [actor], escrituras);
+    await assert.rejects(() => lib.actualizarIncidencia(actor, fila.id_incidencia, { ...datosEdicionEstado, estado: "EN_CURSO" }),
+      (error) => error.codigo === "ESTADO_INVALIDO");
+    assert.equal(fila.titulo, "Original");
+    assert.equal(fila.estado, "REGISTRADA");
+    assert.equal(escrituras.length, 0);
+    fila.estado = "CANCELADA";
+    await assert.rejects(() => lib.actualizarIncidencia(actor, fila.id_incidencia, { ...datosEdicionEstado, estado: "REGISTRADA" }));
+    assert.equal(escrituras.length, 0);
+  }
+});
+
+test("estado propio en edición conserva el actual y actualiza resolución, reapertura y archivado", async () => {
+  const fila = { id_incidencia: "FECHAS-ESTADO", usuario_creador: vocal.id_usuario, usuario_creador_email: vocal.email,
+    tipo_ubicacion: "BLOQUE", bloque: "B1", estado: "EN_CURSO", archivada: false };
+  const lib = entornoIncidencias([fila]);
+  await lib.actualizarIncidencia(vocal, fila.id_incidencia, datosEdicionEstado);
+  assert.equal(fila.estado, "EN_CURSO");
+  await lib.actualizarIncidencia(vocal, fila.id_incidencia, { ...datosEdicionEstado, estado: "EN_CURSO" });
+  assert.equal(fila.estado, "EN_CURSO");
+  await lib.actualizarIncidencia(vocal, fila.id_incidencia, { ...datosEdicionEstado, estado: "RESUELTA" });
+  assert.ok(fila.fecha_resolucion);
+  assert.equal(fila.fecha_resolucion, fila.fecha_estado_final);
+  assert.equal(fila.archivada, false);
+  await lib.actualizarIncidencia(vocal, fila.id_incidencia, { ...datosEdicionEstado, estado: "REABIERTA" });
+  assert.equal(fila.fecha_resolucion, "");
+  assert.equal(fila.fecha_estado_final, "");
+});
+
+test("ser asignado no permite cambiar el estado ni guardar edición de incidencias ajenas", async () => {
+  for (const rol of ["VOCAL", "COORDINADOR", "ADMINISTRADOR_FINCAS"]) {
+    const actor = { ...vocal, rol };
+    const fila = { id_incidencia: "ESTADO-AJENO", usuario_creador: admin.id_usuario, usuario_creador_email: admin.email,
+      responsable_email: actor.email, tipo_ubicacion: "BLOQUE", bloque: "B2", estado: "ASIGNADA", titulo: "Original" };
+    const escrituras = [];
+    const lib = entornoIncidencias([fila], [actor], escrituras);
+    await assert.rejects(() => lib.cambiarEstadoIncidencia(actor, fila.id_incidencia, "EN_CURSO"), (error) => error.codigo === "PERMISO_DENEGADO");
+    await assert.rejects(() => lib.actualizarIncidencia(actor, fila.id_incidencia, { ...datosEdicionEstado, estado: "EN_CURSO" }), (error) => error.codigo === "PERMISO_DENEGADO");
+    assert.equal(escrituras.length, 0);
+  }
+});
 
 test("solo ADMIN puede salir de Cancelada a cualquier otro estado", async () => {
   for (const destino of Object.values(constantes.ESTADOS).filter((estado) => estado !== "CANCELADA")) {
@@ -522,4 +590,46 @@ test("editar una cuenta con ID repetido conserva su propia contraseña", async (
   assert.equal(fila.password_hash, hash);
   assert.equal(fila.nombre, "Vocal editado");
   assert.equal(otraCuenta.password_hash, undefined);
+});
+
+test("PATCH de edición acepta estado y rechaza valores inválidos sin guardar cambios", async () => {
+  const fila = { id_incidencia: "API-ESTADO", usuario_creador: vocal.id_usuario, usuario_creador_email: vocal.email,
+    tipo_ubicacion: "BLOQUE", bloque: "B1", estado: "ASIGNADA", titulo: "Original" };
+  const escrituras = [];
+  const lib = entornoIncidencias([fila], [vocal], escrituras);
+  const esquemas = cargar("src/lib/esquemas.ts", { "./constants": constantes });
+  assert.equal(esquemas.esquemaNuevaIncidencia.parse({ ...datosEdicionEstado, estado: "CERRADA" }).estado, undefined);
+  const api = cargar("src/lib/api.ts", { "./permissions": permisos });
+  const ruta = cargar("src/app/api/incidencias/[id]/route.ts", {
+    "@/lib/sesion": { obtenerUsuarioActual: async () => vocal }, "@/lib/incidencias": lib,
+    "@/lib/api": api, "@/lib/esquemas": esquemas, "@/lib/eliminarIncidencia": {},
+  });
+  function request(estado) {
+    return new Request("http://localhost/api/incidencias/API-ESTADO", { method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...datosEdicionEstado, estado }) });
+  }
+  const params = { params: Promise.resolve({ id: fila.id_incidencia }) };
+  assert.equal((await ruta.PATCH(request("INVENTADO"), params)).status, 400);
+  assert.equal(escrituras.length, 0);
+  assert.equal((await ruta.PATCH(request("EN_CURSO"), params)).status, 200);
+  assert.equal(fila.estado, "EN_CURSO");
+  assert.equal(fila.titulo, datosEdicionEstado.titulo);
+  assert.equal(escrituras.length, 1);
+});
+
+test("el formulario ofrece selector de estado solo al editar y limita sus destinos", () => {
+  const React = require("react");
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const Formulario = cargar("src/components/FormularioIncidencia.tsx", {
+    "next/navigation": { useRouter: () => ({}) }, "@/lib/compresionImagen": {}, "@/lib/constants": constantes,
+  }).default;
+  const catalogos = { BLOQUES: [], PLANTAS: [], ZONAS: [], CATEGORIAS: [] };
+  const html = renderToStaticMarkup(React.createElement(Formulario, { catalogos, idIncidencia: "FORM-ESTADO",
+    valoresIniciales: { ...datosEdicionEstado, estado: "ASIGNADA" }, estadosPermitidos: ["EN_CURSO", "CANCELADA"] }));
+  assert.ok(html.includes('name="estado"'));
+  assert.ok(html.includes("Asignada (actual)"));
+  assert.ok(html.includes('value="EN_CURSO"'));
+  assert.equal(html.includes('value="CERRADA"'), false);
+  const creacion = renderToStaticMarkup(React.createElement(Formulario, { catalogos }));
+  assert.equal(creacion.includes('name="estado"'), false);
 });

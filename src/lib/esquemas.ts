@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PRIORIDADES, ROLES, TIPO_UBICACION } from "./constants";
+import { ESTADOS, PRIORIDADES, ROLES, TIPO_UBICACION } from "./constants";
 
 // Normaliza campos opcionales que pueden llegar como null (p. ej. de un
 // FormData.get() sobre un <select> que no está en el DOM) a undefined, para
@@ -29,6 +29,10 @@ export const esquemaNuevaIncidencia = z.object({
   fechaPrevistaActuacion: textoOpcional(50),
   responsableEmail: z.union([z.string().email().max(200), z.literal("")]).optional(),
   confidencial: z.boolean().optional(),
+});
+
+export const esquemaEdicionIncidencia = esquemaNuevaIncidencia.extend({
+  estado: z.nativeEnum(ESTADOS).optional(),
 });
 
 export const esquemaCambiarEstado = z.object({

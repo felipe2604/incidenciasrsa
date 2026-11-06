@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { comprimirImagen } from "@/lib/compresionImagen";
-import { PRIORIDADES, type OpcionCatalogo } from "@/lib/constants";
+import { ETIQUETAS_ESTADO, PRIORIDADES, type Estado, type OpcionCatalogo } from "@/lib/constants";
 
 export interface ValoresIncidencia {
   titulo: string;
@@ -18,6 +18,7 @@ export interface ValoresIncidencia {
   responsableEmail?: string;
   responsableNombre?: string;
   fechaPrevistaActuacion?: string;
+  estado?: Estado;
 }
 
 interface CatalogosFormulario {
@@ -34,9 +35,10 @@ interface PropiedadesFormularioIncidencia {
   idIncidencia?: string;
   valoresIniciales?: ValoresIncidencia;
   datosExtra?: Record<string, unknown>;
+  estadosPermitidos?: Estado[];
 }
 
-export default function FormularioIncidencia({ catalogos, onExito, onCambio, idIncidencia, valoresIniciales, datosExtra }: PropiedadesFormularioIncidencia) {
+export default function FormularioIncidencia({ catalogos, onExito, onCambio, idIncidencia, valoresIniciales, datosExtra, estadosPermitidos = [] }: PropiedadesFormularioIncidencia) {
   const modoEdicion = !!idIncidencia;
   const router = useRouter();
   const [tipoUbicacion, setTipoUbicacion] = useState<"BLOQUE" | "ZONA_COMUN">(valoresIniciales?.tipoUbicacion || "BLOQUE");
@@ -88,6 +90,7 @@ export default function FormularioIncidencia({ catalogos, onExito, onCambio, idI
     const form = new FormData(formulario);
     const campoImagenes = formulario.elements.namedItem("imagenes") as HTMLInputElement | null;
     const archivos = campoImagenes?.files ? Array.from(campoImagenes.files) : [];
+    const estadoSeleccionado = form.get("estado");
     const datos = {
       titulo: form.get("titulo"),
       descripcion: form.get("descripcion"),
@@ -101,6 +104,7 @@ export default function FormularioIncidencia({ catalogos, onExito, onCambio, idI
       confidencial: form.get("confidencial") === "on",
       responsableEmail: modoEdicion && (!responsable || responsable === (valoresIniciales?.responsableEmail || "")) ? undefined : responsable,
       fechaPrevistaActuacion: form.get("fechaPrevistaActuacion"),
+      estado: modoEdicion && typeof estadoSeleccionado === "string" && estadoSeleccionado !== valoresIniciales?.estado ? estadoSeleccionado : undefined,
     };
     try {
       const resp = await fetch(modoEdicion ? `/api/incidencias/${idIncidencia}` : "/api/incidencias", {
@@ -132,6 +136,18 @@ export default function FormularioIncidencia({ catalogos, onExito, onCambio, idI
   return (
     <form onSubmit={onSubmit} onChange={onCambio} className="flex flex-col gap-4">
       {mensaje && <p className="rounded-md bg-marca-100/50 p-3 text-marca-900">{mensaje}</p>}
+      {modoEdicion && valoresIniciales?.estado && (
+        <label className="block text-sm font-medium" htmlFor="estado">Estado
+          <select id="estado" name="estado" defaultValue={valoresIniciales.estado} disabled={enviando || estadosPermitidos.length === 0}
+            className="mt-1 w-full rounded-md border p-2 disabled:bg-gray-100 disabled:text-gray-600">
+            <option value={valoresIniciales.estado}>{ETIQUETAS_ESTADO[valoresIniciales.estado]} (actual)</option>
+            {estadosPermitidos.filter((estado) => estado !== valoresIniciales.estado).map((estado) => (
+              <option key={estado} value={estado}>{ETIQUETAS_ESTADO[estado]}</option>
+            ))}
+          </select>
+          {errores.estado && <span className="text-sm text-red-700">{errores.estado}</span>}
+        </label>
+      )}
       <div>
         <label className="block text-sm font-medium" htmlFor="titulo">
           Título

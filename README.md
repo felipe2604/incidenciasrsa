@@ -90,14 +90,21 @@ Otros puntos relevantes:
 | --- | --- | --- |
 | ADMIN | Todo | Gestión completa, incluidos usuarios y catálogos. |
 | PRESIDENTE | Todas las incidencias, contenido confidencial, informes y contadores por usuario | Crear y editar cualquier incidencia, cambiar estados, comentar y adjuntar. Sin gestión de usuarios ni catálogos. |
-| VOCAL | Bloques y zonas de su ámbito e incidencias asignadas personalmente; descripción confidencial solo si es propia | Crear, editar, comentar y adjuntar solo en las propias. Las ajenas son de lectura estricta. Sin cambios de estado ni informes. |
-| COORDINADOR | Mismo ámbito de lectura que VOCAL | Crear y editar las propias; comentar y adjuntar también en las ajenas visibles. Sin cambios de estado ni informes. |
+| VOCAL | Bloques y zonas de su ámbito e incidencias asignadas personalmente; descripción confidencial solo si es propia | Crear, editar, cambiar estado, comentar y adjuntar solo en las propias. Las ajenas son de lectura estricta. Sin informes. |
+| COORDINADOR | Mismo ámbito de lectura que VOCAL | Crear, editar y cambiar estado de las propias; comentar y adjuntar también en las ajenas visibles. Sin informes. |
 | ADMINISTRADOR_FINCAS | Todas las incidencias e informes; descripción confidencial solo si es propia | Crear, editar y cambiar estado solo de las propias; comentar y adjuntar también en las ajenas. Sin gestión de usuarios ni catálogos. |
 
 Solo ADMIN puede pasar de Cancelada a cualquier otro estado y de Registrada
 directamente a En curso. Las transiciones del resto de perfiles no cambian.
 Reactivar una cancelada elimina las fechas de finalización y la marca de archivada;
 volver a Resuelta o Cerrada establece una nueva fecha de estado final.
+
+Todos los perfiles pueden cambiar el estado de las incidencias que han creado,
+desde los botones del detalle o desde el selector Estado al editar. El selector
+incluye el estado actual y sus destinos permitidos; no está disponible en el alta.
+Guardar la edición valida y persiste datos y estado juntos: una transición
+rechazada no guarda parcialmente el formulario. Ser responsable de una incidencia
+ajena no concede permiso para editarla ni cambiar su estado.
 
 ### Acceso Sin Google
 

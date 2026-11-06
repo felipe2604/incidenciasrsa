@@ -2,15 +2,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import FormularioIncidencia, { type ValoresIncidencia } from "./FormularioIncidencia";
-import type { OpcionCatalogo } from "@/lib/constants";
+import type { Estado, OpcionCatalogo } from "@/lib/constants";
 
 interface PropiedadesModalEditarIncidencia {
   idIncidencia: string;
   valoresIniciales: ValoresIncidencia;
+  estadosPermitidos?: Estado[];
   catalogos: { BLOQUES: OpcionCatalogo[]; PLANTAS: OpcionCatalogo[]; ZONAS: OpcionCatalogo[]; CATEGORIAS: OpcionCatalogo[] };
 }
 
-export default function ModalEditarIncidencia({ idIncidencia, valoresIniciales, catalogos }: PropiedadesModalEditarIncidencia) {
+export default function ModalEditarIncidencia({ idIncidencia, valoresIniciales, catalogos, estadosPermitidos }: PropiedadesModalEditarIncidencia) {
   const router = useRouter();
   const [abierto, setAbierto] = useState(false);
   const [huboCambios, setHuboCambios] = useState(false);
@@ -72,6 +73,7 @@ export default function ModalEditarIncidencia({ idIncidencia, valoresIniciales, 
                 catalogos={catalogos}
                 idIncidencia={idIncidencia}
                 valoresIniciales={valoresIniciales}
+                estadosPermitidos={estadosPermitidos}
                 onExito={alGuardar}
                 onCambio={() => setHuboCambios(true)}
               />

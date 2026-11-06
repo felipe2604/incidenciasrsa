@@ -17,6 +17,8 @@ const hojas = {
     { id_usuario: "UVOCAL", email: "google@example.invalid", nombre: "Cuenta Google con ID duplicado", rol: "VOCAL", activo: true, acceso_password: false, cambio_password_obligatorio: false, version_sesion: "test-google" },
     { id_usuario: "UVOCAL", email: "vocal@example.invalid", nombre: "Vocal de prueba", rol: "VOCAL", ambito_bloques: "B1", ambito_zonas: "PISCINA", activo: true, acceso_password: true, password_hash: hash, cambio_password_obligatorio: true, version_sesion: "test-vocal" },
     { id_usuario: "UPRES", email: "presidente@example.invalid", nombre: "Presidente de prueba", rol: "PRESIDENTE", activo: true, acceso_password: true, password_hash: hash, cambio_password_obligatorio: false, version_sesion: "test-presidente" },
+    { id_usuario: "UCOORD", email: "coordinador@example.invalid", nombre: "Coordinador de prueba", rol: "COORDINADOR", ambito_bloques: "B1", activo: true, acceso_password: true, password_hash: hash, cambio_password_obligatorio: false, version_sesion: "test-coordinador" },
+    { id_usuario: "UFINCAS", email: "fincas@example.invalid", nombre: "Administrador de fincas de prueba", rol: "ADMINISTRADOR_FINCAS", activo: true, acceso_password: true, password_hash: hash, cambio_password_obligatorio: false, version_sesion: "test-fincas" },
     { id_usuario: "UOTRO", email: "otro@example.invalid", nombre: "Responsable del Bloque 2", rol: "VOCAL", ambito_bloques: "B2", activo: true, acceso_password: true, password_hash: hash, cambio_password_obligatorio: false, version_sesion: "test-otro" },
     { id_usuario: "UINACTIVO", email: "inactivo@example.invalid", nombre: "Cuenta inactiva", rol: "VOCAL", activo: false },
   ]),

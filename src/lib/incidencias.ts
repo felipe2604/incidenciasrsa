@@ -249,7 +249,23 @@ export async function crearIncidencia(actor: Usuario, datos: DatosIncidenciaNuev
   return idNuevo;
 }
 
-export type DatosIncidenciaEdicion = DatosIncidenciaNueva;
+export type DatosIncidenciaEdicion = DatosIncidenciaNueva & { estado?: Estado };
+
+function prepararCambioEstado(actor: Usuario, inc: Incidencia, nuevoEstado: string, ahora: string) {
+  if (!puedeCambiarEstado(actor, inc.usuario_creador, inc.usuario_creador_email)) {
+    throw new ErrorAplicacion("PERMISO_DENEGADO", "No tiene permisos para cambiar el estado de esta incidencia.");
+  }
+  if (!transicionesPermitidas(actor, inc.estado).includes(nuevoEstado as Estado)) {
+    throw new ErrorAplicacion("ESTADO_INVALIDO", "Esa transición de estado no está permitida.");
+  }
+  const reactivarCancelada = inc.estado === ESTADOS.CANCELADA && nuevoEstado !== ESTADOS.RESUELTA && nuevoEstado !== ESTADOS.CERRADA;
+  return {
+    estado: nuevoEstado,
+    fecha_resolucion: nuevoEstado === ESTADOS.RESUELTA ? ahora : nuevoEstado === ESTADOS.REABIERTA || reactivarCancelada ? "" : inc.fecha_resolucion || "",
+    fecha_estado_final: nuevoEstado === ESTADOS.RESUELTA || nuevoEstado === ESTADOS.CERRADA ? ahora : "",
+    archivada: false,
+  };
+}
 
 export async function actualizarIncidencia(actor: Usuario, idIncidencia: string, datos: DatosIncidenciaEdicion): Promise<void> {
   const { objeto, numeroFila, encabezados: encabezadosActuales } = await buscarFilaIncidencia(idIncidencia);
@@ -286,10 +302,14 @@ export async function actualizarIncidencia(actor: Usuario, idIncidencia: string,
   }
 
   const ahora = new Date().toISOString();
+  const cambioEstado = datos.estado !== undefined && datos.estado !== inc.estado ? prepararCambioEstado(actor, inc, datos.estado, ahora) : null;
   const responsable = datos.responsableEmail !== undefined ? await resolverResponsable(actor, datos.responsableEmail) : null;
   const cambiaResponsable = responsable && responsable.email !== inc.responsable_email;
-  const encabezados = responsable ? await obtenerEncabezados(HOJAS.INCIDENCIAS, ["responsable", "responsable_email", "responsable_nombre", "fecha_asignacion"]) : encabezadosActuales;
+  const campos = [...(responsable ? ["responsable", "responsable_email", "responsable_nombre", "fecha_asignacion"] : []),
+    ...(cambioEstado ? ["fecha_estado_final", "archivada"] : [])];
+  const encabezados = campos.length ? await obtenerEncabezados(HOJAS.INCIDENCIAS, campos) : encabezadosActuales;
   await actualizarCelda(HOJAS.INCIDENCIAS, numeroFila, encabezados, {
+    ...cambioEstado,
     ...(responsable ? { responsable: responsable.id, responsable_email: responsable.email, responsable_nombre: responsable.nombre,
       fecha_asignacion: cambiaResponsable ? ahora : inc.fecha_asignacion || ahora } : {}),
     titulo: limpio.titulo,
@@ -309,27 +329,18 @@ export async function actualizarIncidencia(actor: Usuario, idIncidencia: string,
     usuario_ultima_modificacion: actor.id_usuario,
   });
   await registrarAuditoria("EDITAR_INCIDENCIA", "INCIDENCIA", idIncidencia, "Incidencia editada", "OK");
+  if (cambioEstado) await registrarAuditoria("CAMBIAR_ESTADO", "INCIDENCIA", idIncidencia, `Nuevo estado: ${datos.estado}`, "OK");
 }
 
 export async function cambiarEstadoIncidencia(actor: Usuario, idIncidencia: string, nuevoEstado: string): Promise<void> {
   const { objeto, numeroFila } = await buscarFilaIncidencia(idIncidencia);
   const inc = objeto as Incidencia;
   if (!incidenciaEnAmbito(actor, inc)) throw new ErrorAplicacion("PERMISO_DENEGADO", "No tiene acceso a esta incidencia.");
-  if (!puedeCambiarEstado(actor, inc.usuario_creador, inc.usuario_creador_email)) {
-    throw new ErrorAplicacion("PERMISO_DENEGADO", "No tiene permisos para cambiar el estado de esta incidencia.");
-  }
-  const permitidas = transicionesPermitidas(actor, inc.estado as Estado);
-  if (!permitidas.includes(nuevoEstado as Estado)) {
-    throw new ErrorAplicacion("ESTADO_INVALIDO", "Esa transición de estado no está permitida.");
-  }
   const ahora = new Date().toISOString();
-  const reactivarCancelada = inc.estado === ESTADOS.CANCELADA && nuevoEstado !== ESTADOS.RESUELTA && nuevoEstado !== ESTADOS.CERRADA;
+  const cambios = prepararCambioEstado(actor, inc, nuevoEstado, ahora);
   const encabezados = await obtenerEncabezados(HOJAS.INCIDENCIAS, ["fecha_estado_final", "archivada"]);
   await actualizarCelda(HOJAS.INCIDENCIAS, numeroFila, encabezados, {
-    estado: nuevoEstado,
-    fecha_resolucion: nuevoEstado === ESTADOS.RESUELTA ? ahora : nuevoEstado === ESTADOS.REABIERTA || reactivarCancelada ? "" : inc.fecha_resolucion || "",
-    fecha_estado_final: nuevoEstado === ESTADOS.RESUELTA || nuevoEstado === ESTADOS.CERRADA ? ahora : "",
-    archivada: false,
+    ...cambios,
     fecha_ultima_modificacion: ahora,
     usuario_ultima_modificacion: actor.id_usuario,
   });

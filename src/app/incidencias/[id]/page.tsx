@@ -56,6 +56,7 @@ export default async function DetalleIncidenciaPage({ params }: { params: Promis
             <ModalEditarIncidencia
               idIncidencia={incidencia.idIncidencia}
               catalogos={catalogos}
+              estadosPermitidos={puedeCambiarEstadoActual ? transicionesPosibles : []}
               valoresIniciales={{
                 titulo: incidencia.titulo,
                 descripcion: incidencia.descripcion,
@@ -70,6 +71,7 @@ export default async function DetalleIncidenciaPage({ params }: { params: Promis
                 responsableEmail: incidencia.responsableEmail,
                 responsableNombre: incidencia.responsableNombre,
                 fechaPrevistaActuacion: incidencia.fechaPrevistaActuacion,
+                estado: incidencia.estado,
               }}
             />
           )}

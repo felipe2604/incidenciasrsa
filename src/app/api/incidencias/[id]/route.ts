@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { obtenerUsuarioActual } from "@/lib/sesion";
 import { actualizarIncidencia, cambiarEstadoIncidencia, obtenerIncidenciaDetalle } from "@/lib/incidencias";
 import { manejarErrorApi } from "@/lib/api";
-import { esquemaCambiarEstado, esquemaNuevaIncidencia } from "@/lib/esquemas";
+import { esquemaCambiarEstado, esquemaEdicionIncidencia } from "@/lib/esquemas";
 import { eliminarIncidencia } from "@/lib/eliminarIncidencia";
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -44,7 +44,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     // Edición completa de los datos descriptivos (modal "Editar incidencia").
-    const analizado = esquemaNuevaIncidencia.safeParse(cuerpo);
+    const analizado = esquemaEdicionIncidencia.safeParse(cuerpo);
     if (!analizado.success) {
       return NextResponse.json({ ok: false, message: "Datos de incidencia no válidos." }, { status: 400 });
     }
